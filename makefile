@@ -5,7 +5,8 @@ EXEC = sweeprecur
 FC = gfortran
 
 # Options de compilation
-FFLAGS = -O2 -Wall -J$(MODDIR)  # -Jmod place les .mod dans mod/
+# FFLAGS = -fcheck=all -g -O0 -Wall -J$(MODDIR)  # -Jmod place les .mod dans mod/
+FFLAGS = -fcheck=all -O2 -Wall -J$(MODDIR)  # -Jmod place les .mod dans mod/
 
 # Dossiers
 SRCDIR = src

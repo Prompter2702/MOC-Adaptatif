@@ -200,8 +200,7 @@
       
       SUBROUTINE SWEEP_8REGIONS(n,mord,asrc,finc,aflx,fout,
      &                          ccof,icof,ecof,tcof,
-     &                          xinc, yinc, zinc,
-     &                          nx, ny)
+     &                          xinc, yinc, zinc)
 
 !     Spatial sweep of 1 region 
 !
@@ -220,6 +219,7 @@
       INTEGER, PARAMETER :: nc = 4, nb = 3, nbd = 9,
      &                      nr = 8, ns = 4, n2 = 2
       INTEGER,PARAMETER :: xx=1, yy=2, zz=3
+      INTEGER,PARAMETER :: nx=2, ny=2
       INTEGER      :: n,mord
       REAL         :: aflx(n,nc,nr),asrc(n,nc,nr)
       REAL         :: finc(n,nb,zz,ns),fout(n,nb,zz,ns),faux(n,nbd)
@@ -228,9 +228,8 @@
 
       REAL         :: xaux(n,nb),yaux(n,n2,nb),zaux(n,n2,n2,nb)
 
-      INTEGER      :: b,c,r,s,x,y,z,k,id
+      INTEGER      :: b,c,r,s,x,y,z
       INTEGER, INTENT(IN) :: xinc, yinc, zinc
-      INTEGER, INTENT(IN) :: nx, ny
 
       INTEGER :: xout, yout, zout
 

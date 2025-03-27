@@ -14,7 +14,7 @@
       INTEGER, PARAMETER :: nn = ndir*ng
       INTEGER, PARAMETER :: nc=4, nb=3, nd = ndir*8
       INTEGER, PARAMETER :: nbd = nb*ndim
-      INTEGER, PARAMETER :: nx = 2, ny = 2, nz = 2
+      INTEGER, PARAMETER :: nx = 64, ny = 64, nz = 64
       INTEGER, PARAMETER :: nbfx = ny*nz,nbfy=nx*nz,nbfz=nx*ny
       INTEGER, PARAMETER :: nani=0,nhrm=1 
       INTEGER, PARAMETER :: nr = nx*ny*nz , nh = 1
@@ -79,8 +79,7 @@
       ENDDO
 
 
-      print *,"av flux", aflx(:,:,1,1)
-      
+    !   print *,"av flux", aflx(:,:,1,1)
       
       CALL COFSGN(sgnc,sgni,sgne,sgnt,nc,nbd,ndim,2)
       CALL SNQDLFT(ndir,nd,nani,ndim, nhrm, mu,eta,ksi,w,sphr)
@@ -104,7 +103,7 @@
      &                     flxm)
         
 
-      print *,"Flux final", aflx(:,:,1,1)
+    !   print *,"Flux final", aflx(:,:,1,1)
     !   print *, bflx  
     !   print *, bfly  
     !   print *, bflz  

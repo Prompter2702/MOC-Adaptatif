@@ -23,8 +23,6 @@
         REAL (KIND=8) :: phi
         INTEGER :: dd,o,d,noct
 
-        print *,"SNQDLFT"
-
         IF(ndir/=3)STOP 'SNQDFLT: ndir must be 3' 
         IF(ndim/=3)STOP 'SNQDFLT: ndim must be 3'
 

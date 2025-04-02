@@ -23,13 +23,19 @@
         REAL (KIND=8) :: phi
         INTEGER :: dd,o,d,noct
 
-        IF(ndir/=3)STOP 'SNQDFLT: ndir must be 3' 
+        ! IF(ndir/=3)STOP 'SNQDFLT: ndir must be 3' 
         IF(ndim/=3)STOP 'SNQDFLT: ndim must be 3'
 
-        mu  = (/.30163872, .30163872, .90444905/)
-        eta = (/.90444905, .30163872, .30163872/)
-        ksi = (/.30163872, .90444905, .30163872/)
-        w=1.0D+0/24.
+
+        mu  = (/ 1.0/SQRT(3.0) /)
+        eta = (/ 1.0/SQRT(3.0) /)
+        ksi = (/ 1.0/SQRT(3.0) /)
+        w = 1.0D+0/8.
+
+        ! mu  = (/.30163872, .30163872, .90444905/)
+        ! eta = (/.90444905, .30163872, .30163872/)
+        ! ksi = (/.30163872, .90444905, .30163872/)
+        ! w=1.0D+0/24.
 
         noct=2**ndim
 

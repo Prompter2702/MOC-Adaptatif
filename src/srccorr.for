@@ -5,7 +5,7 @@
     !   PRIVATE :: GAUSS_LU4
       CONTAINS
 
-      SUBROUTINE SRCCOR(ng, ndir, delt, mu,eta, ksi, srcm, sigt, err)
+      SUBROUTINE SRCCOR(ng, ndir, delt3, mu,eta, ksi, srcm, sigt, err)
         
       IMPLICIT NONE
 
@@ -14,7 +14,7 @@
       INTEGER, INTENT(IN) :: ng, ndir
       REAL(KIND=8), INTENT(IN) :: mu(ndir),eta(ndir), ksi(ndir)
       REAL, INTENT(IN) :: srcm(ng, ndir, nc), sigt(ng)
-      REAL, INTENT(IN) :: delt
+      REAL, INTENT(IN) :: delt3(3)
       REAL(KIND=8), INTENT(INOUT):: err(ng, ndir)
 
       REAL(KIND=8) :: l4(ndir)
@@ -24,7 +24,7 @@
       nquad = 10
       err = 0.0D0
       
-      CALL GAUSS_LU4(nquad,ndir, delt,delt,delt, mu,eta, ksi, l4)
+      CALL GAUSS_LU4(nquad,ndir, delt3, mu,eta, ksi, l4)
 
       DO d=1,ndir
         coeff(:) = (sigt(:)**2)/24.0
@@ -39,13 +39,12 @@
 
 
 
-      SUBROUTINE GAUSS_LU4(nquad,ndir, deltx,delty,
-     &                     deltz, mu,eta,ksi, val)
+      SUBROUTINE GAUSS_LU4(nquad,ndir, delt3, mu,eta,ksi, val)
     
       IMPLICIT NONE
 
       INTEGER, INTENT(IN) :: nquad, ndir
-      REAL, INTENT(IN)    :: deltx, delty, deltz
+      REAL, INTENT(IN)    :: delt3(3)
       REAL(KIND=8), INTENT(IN)    :: mu(ndir), eta(ndir), ksi(ndir)
       REAL(KIND=8), INTENT(INOUT)   :: val(ndir)
 
@@ -54,12 +53,13 @@
       REAL(KIND=8) :: pds1, pds2, pds3
       
       
-      dx = deltx/nquad
-      dy = delty/nquad
-      dz = deltz/nquad
-      pds1 = deltx*delty/nquad**2
-      pds2 = deltx*deltz/nquad**2
-      pds3 = delty*deltz/nquad**2
+      dx = delt3(1)/nquad
+      dy = delt3(2)/nquad
+      dz = delt3(3)/nquad
+
+      pds1 = dx*dy
+      pds2 = dx*dz
+      pds3 = dy*dz
 
       val(:) = 0.0D0
 
@@ -67,12 +67,12 @@
       DO i=1,nquad
         DO j= 1,nquad
           val(:) = val(:) + pds1*(min(i*dx/ABS(mu(:)),
-     &                     j*dy/ABS(eta(:)), deltz/ABS(ksi(:))))**4
+     &                     j*dy/ABS(eta(:)), delt3(3)/ABS(ksi(:))))**4
   
           val(:) = val(:) + pds2*(min(i*dx/ABS(mu(:)),
-     &                     j*dy/ABS(eta(:)), deltz/ABS(ksi(:))))**4
+     &                     j*dy/ABS(eta(:)), delt3(3)/ABS(ksi(:))))**4
   
-          val(:) = val(:) + pds3*(min(deltx/ABS(mu(:)),
+          val(:) = val(:) + pds3*(min(delt3(1)/ABS(mu(:)),
      &                     i*dy/ABS(eta(:)), j*dz/ABS(ksi(:))))**4
         ENDDO
       ENDDO

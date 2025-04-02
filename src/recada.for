@@ -14,30 +14,36 @@
      &                          mu,eta,ksi,w,pisn,sphr,
        ! input: sing matrices to adapt coefficients to octants 
      &                          sgnc,sgni,sgne,sgnt,
-       ! input: auxiliar memory for boundary angular fluxes, angular source moments and self-scattering xs 
+       ! input: auxiliar memory for boundary angular fluxes, angular 
+       ! source moments and self-scattering xs 
      &                          finc,fout,tmom,sigg,
        ! input: auxiliar memory angular flux & source 
      &                          aflx,asrc,dsrc,
        ! input: auxiliar memory for the interface angular flux 
      &                          xaux,yaux,zaux,
-       ! input: auxiliar memory to drive angular mirror-reflection or rotation/translation b.c.
+       ! input: auxiliar memory to drive angular mirror-reflection 
+       ! or rotation/translation b.c.
      &                          rdir,
        ! input: pixel-to-medium array 
      &                          zreg, 
        ! input: pixel-to-medium array 
      &                          dira,dirf,
-       ! input: logical to add angular source in case of time-dependent calculation 
+       ! input: logical to add angular source in case of
+       ! time-dependent calculation 
      &                          lgki,
        ! output: flux moments 
-     &                          flxm)
+     &                          flxm,
+       ! Delta on each direction of the region
+     &                          delt3)
 
       USE FLGOCT
       USE FLGBCD
       USE FLGINC
-
+      USE SWEEP8ONE
+      
       IMPLICIT NONE
 
-      INTEGER, PARAMETER :: noct = 8
+      INTEGER, PARAMETER :: noct = 8, n8=8, ns=4
       
       INTEGER :: nn,ng,nr,nh,nc,nx,ny,nz,nmat
       INTEGER :: nb,nbd,nbfx,nbfy,nbfz
@@ -59,17 +65,33 @@
       REAL    :: xaux(nn,nb),yaux(nn,nx,nb),zaux(nn,nx,ny,nb)
       INTEGER :: rdir(nd,*),dira(*),dirf(*)
       LOGICAL :: lgki
+      REAL, INTENT(IN)     :: delt3(3)
 
       INTEGER :: xout,yout,zout,fst
       INTEGER :: oc,oct,d,dd,da,c,h,i
 
+      REAL  :: aflx0(nn,nc), aflx1(nn,nc,n8)
+      REAL  :: xshom0(ng), xshom1(ng,n8)
+      REAL  :: asrcm0(ng,ndir,nc), asrcm1(ng,ndir,nc,n8)
+      REAL  :: finc1(nn,nb,3,ns), fout1(nn,nb,3,ns)
+      REAL  :: finc0(nn,nb,3), fout0(nn,nb,3)
+
+      REAL  :: ccof(nn,nc,nc),icof(nn,nc,nbd)
+      REAL  :: ecof(nn,nbd,nc),tcof(nn,nbd,nbd)
+      REAL(KIND=8)  :: errcor(ng, ndir),errmul(ng, ndir)
+      REAL     :: ccof8(nn,nc,nc,n8),icof8(nn,nc,nbd,n8)
+      REAL     :: ecof8(nn,nbd,nc,n8),tcof8(nn,nbd,nbd,n8)
+      LOGICAL  :: ok 
+      INTEGER  :: ii,jj,kk,rr 
+
      
+
       CALL GMOM3D(ng,nani,nh,nc,nr,sigs,flxp,srcm,zreg,sigg,tmom)
 
 !     Loop over octants of angular space in order defined by
 !     octant list "olst3D".
 
-      DO oc=1,8
+      DO oc=8,8
          oct=olst3D(oc)
 !        Index of outgoing side.
          xout=3-xinc(oct)
@@ -102,11 +124,39 @@
             bflz(:,:,i,zout,oct) = bflx(:,:,i,zinc(oct),oct)
         ENDDO
 
+!     Niveau 0 doit être déjà fait :
+        CALL XSSRCHOMO0(nn,ng,nr,nx,ny, ndir,
+     &                 1,nx,1,ny,1,nz,
+     &                 sigt, zreg, aflx(:,:,:,oct), w,
+     &                 asrc(:,:,:,oct), xshom0,
+     &                 asrcm0)
+
+        CALL ONE_COEF3D(nn,ndir,ng,mu,eta,ksi,
+     &                delt3,xshom0,
+     &                sgnc(:,:,oct),sgni(:,:,oct),
+     &                sgne(:,:,oct),sgnt(:,:,oct),
+     &                ccof,icof,ecof,tcof)
+      
+
+        CALL MERGEBOUND0(nn, ng,nb,
+     &                   1,nx,1,ny,1,nz,
+     &                   nx,ny,nz,
+     &                   bflx(:,:,:,xinc,oct),
+     &                   bfly(:,:,:,yinc,oct),
+     &                   bflz(:,:,:,zinc,oct),
+     &                   finc0)
+
+
+
+        CALL SWEEP_ONEREGION(nn,2,asrcm0, finc0, aflx0, fout0,
+     &                          ccof,icof,ecof,tcof)
+
+
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
      &                             nx,ny, nz,
      &                             xinc(oct), yinc(oct), zinc(oct),oct,
      &                             1,nx,1,ny,1,nz,
-     &                             0,2.0,sigt, 
+     &                             0,sigt, 
      &                             mu,eta,ksi,w,
      &                             sgnc(:,:,oct),sgni(:,:,oct),
      &                             sgne(:,:,oct),sgnt(:,:,oct),
@@ -114,7 +164,12 @@
      &                             aflx(:,:,:,oct),
      &                             bflx(:,:,:,xout,oct),
      &                             bfly(:,:,:,yout,oct),
-     &                             bflz(:,:,:,zout,oct))    
+     &                             bflz(:,:,:,zout,oct),
+     &                             aflx0, aflx1,xshom0, xshom1,
+     &                             asrcm0, asrcm1,finc0,finc1,
+     &                             fout0,fout1,ccof,icof,ecof,tcof,
+     &                             ccof8,icof8,ecof8,tcof8,
+     &                             errcor,errmul,ok,delt3,ii,jj,kk,rr)  
 
          ! CALL SWEEP
 !        Angular moments.
@@ -159,11 +214,16 @@
      &                             nx,ny,nz,
      &                             xinc,yinc,zinc, oct,
      &                             imin,imax,jmin,jmax,kmin,kmax,niv,
-     &                             delt, sigt, 
+     &                             sigt, 
      &                             mu,eta,ksi,w,
      &                             sgnc,sgni,sgne,sgnt,
      &                             zreg,asrc,aflx,
-     &                             bflx, bfly, bflz)
+     &                             bflx, bfly, bflz,
+     &                             aflx0, aflx1, xshom0, xshom1,
+     &                             asrcm0, asrcm1,finc0,finc1,
+     &                             fout0,fout1,ccof,icof,ecof,tcof,
+     &                             ccof8,icof8,ecof8,tcof8,
+     &                             errcor,errmul,ok,delt3,i,j,k,r)
      
       USE SWEEP8ONE
       USE SRCCORR 
@@ -177,7 +237,6 @@
      &           imin,imax,jmin,jmax,kmin,kmax,
      &           nx,ny,nz,niv,oct
       INTEGER, INTENT(IN) :: xinc,yinc,zinc
-      REAL, INTENT(IN)    :: delt
     !   REAL, INTENT(IN)    :: flxm(ng,nr,nh,nc)
       REAL, INTENT(IN)    :: sigt(ng,*)
       REAL(KIND=8), INTENT(IN) :: mu(ndir),eta(ndir),ksi(ndir),w(ndir)
@@ -189,85 +248,69 @@
       REAL, INTENT(INOUT) :: bflx(nn,nb,ny*nz),bfly(nn,nb,nx*nz),
      &           bflz(nn,nb,nx*ny)
      
-      REAL  :: aflx0(nn,nc), aflx1(nn,nc,n8)
-      REAL  :: xshom0(ng)
-      REAL  :: xshom1(ng,n8)
-      REAL  :: asrcm0(ng,ndir,nc), asrcm1(ng,ndir,nc,n8)
-      REAL  :: finc1(nn,nb,3,ns), fout1(nn,nb,3,ns)
-      REAL  :: finc0(nn,nb,3), fout0(nn,nb,3)
+      REAL, INTENT(INOUT)  :: aflx0(nn,nc), aflx1(nn,nc,n8)
+      REAL, INTENT(INOUT)  :: xshom0(ng), xshom1(ng,n8)
+      REAL, INTENT(INOUT)  :: asrcm0(ng,ndir,nc), asrcm1(ng,ndir,nc,n8)
+      REAL, INTENT(INOUT)  :: finc1(nn,nb,3,ns), fout1(nn,nb,3,ns)
+      REAL, INTENT(INOUT)  :: finc0(nn,nb,3), fout0(nn,nb,3)
 
-      REAL          :: ccof(nn,nc,nc),icof(nn,nc,nbd)
-      REAL          :: ecof(nn,nbd,nc),tcof(nn,nbd,nbd)
-      REAL(KIND=8)  :: errcor(ng, ndir)
-      REAL(KIND=8)  :: errmul(ng, ndir)
+      REAL, INTENT(INOUT)  :: ccof(nn,nc,nc),icof(nn,nc,nbd)
+      REAL, INTENT(INOUT)  :: ecof(nn,nbd,nc),tcof(nn,nbd,nbd)
+      REAL(KIND=8),INTENT(INOUT)  :: errcor(ng, ndir),errmul(ng, ndir)
+      REAL, INTENT(IN)     :: ccof8(nn,nc,nc,n8),icof8(nn,nc,nbd,n8)
+      REAL, INTENT(IN)     :: ecof8(nn,nbd,nc,n8),tcof8(nn,nbd,nbd,n8)
+      LOGICAL, INTENT(INOUT)  :: ok 
+      REAL, INTENT(IN)        :: delt3(3)
+      INTEGER, INTENT(INOUT)  :: i,j,k,r 
+
+
+      REAL :: aflxtps1(nn,nc), asrcmtps1(ng,ndir,nc), xshomtps1(ng)
+      REAL :: aflxtps2(nn,nc), asrcmtps2(ng,ndir,nc), xshomtps2(ng)
+      REAL :: aflxtps3(nn,nc), asrcmtps3(ng,ndir,nc), xshomtps3(ng)
+      REAL :: aflxtps4(nn,nc), asrcmtps4(ng,ndir,nc), xshomtps4(ng)
+      REAL :: aflxtps5(nn,nc), asrcmtps5(ng,ndir,nc), xshomtps5(ng)
+      REAL :: aflxtps6(nn,nc), asrcmtps6(ng,ndir,nc), xshomtps6(ng)
+      REAL :: aflxtps7(nn,nc), asrcmtps7(ng,ndir,nc), xshomtps7(ng)
+      REAL :: aflxtps8(nn,nc), asrcmtps8(ng,ndir,nc), xshomtps8(ng)
       
-      REAL          :: ccof8(nn,nc,nc,n8),icof8(nn,nc,nbd,n8)
-      REAL          :: ecof8(nn,nbd,nc,n8),tcof8(nn,nbd,nbd,n8)
-      LOGICAL       ::  ok
-      REAL          :: delt3(3)
-      INTEGER       :: i,j,k,r 
-
-      delt3 = (/ delt, delt, delt /)/(2**niv)
-
-      fout0 = 0.0
       fout1 = 0.0
-
-    !   print *,"niveau",niv
-    !   print *,imin
-    !   print *,imax
-    !   print *,jmin
-    !   print *,jmax
-    !   print *,kmin
-    !   print *,kmax
-
-      CALL XSSRCHOMO(nn,ng,nr,nx,ny,ndir,
-     &               imin,imax,jmin,jmax,kmin,kmax,
-     &               sigt, zreg, aflx, w,
-     &               asrc, xshom1, xshom0,
-     &               asrcm1, asrcm0)
-     
-! Compute coefficients 
-
-      CALL ONE_COEF3D(nn,ndir,ng,mu,eta,ksi,
-     &                delt3,xshom0,
-     &                sgnc,sgni,sgne,sgnt,
-     &                ccof,icof,ecof,tcof)
-
-      CALL MERGEBOUND(xinc, yinc, zinc, nn, ng,nb,
-     &                   imin, imax,jmin,jmax,kmin,kmax,
-     &                   nx,ny,nz,
-     &                   bflx, bfly, bflz, finc1, finc0)
-
-
-! Compute level-0
-      CALL SWEEP_ONEREGION(nn,2,asrcm0, finc0, aflx0, fout0,
-     &                          ccof,icof,ecof,tcof)
-
 ! Error check by source-correction estimation
-      CALL SRCCOR(ng,ndir,delt,mu,eta,ksi,asrcm0, xshom0,errcor)
+
+      CALL SRCCOR(ng,ndir,delt3/(2**niv),mu,eta,ksi,asrcm0,
+     &            xshom0,errcor)
 
 !     7/ query ok/ko? 
 !     Définir un critère 
-      ok = .FALSE.
+      IF(imax-imin>0 .AND. jmax-jmin>0 .AND. kmax-kmin>0) THEN
+        ok = .FALSE.
+      ELSE
+        ok = .TRUE.
+      ENDIF
 
       IF (.NOT. ok) THEN 
 
-!         8/ if ko: compute coefficiets for level-1
+        CALL XSSRCHOMO1(nn,ng,nr,nx,ny, ndir,
+     &                 imin, imax,jmin,jmax,kmin,kmax,
+     &                 sigt, zreg, aflx, w, asrc, xshom1,
+     &                 asrcm1)
+
+        CALL MERGEBOUND1(nn, ng,nb,
+     &                   imin, imax,jmin,jmax,kmin,kmax,
+     &                   nx,ny,nz,
+     &                   bflx, bfly, bflz, finc1)
+
+
         CALL EIGHT_COEF3D(nn,ndir,ng,mu,eta,ksi,
-     &                    delt3/2,xshom1,
+     &                    delt3/(2**(niv+1)),xshom1,
      &                    sgnc,sgni,sgne,sgnt,
      &                    ccof8,icof8,ecof8,tcof8)
-!         9/ upload the boundary source !         Done 
-!         10/ upload the source on level-1!         Done
-!         11/ solve node-1
+
 
         CALL SWEEP_8REGIONS(nn,2,asrcm1, finc1, aflx1, fout1,
      &                     ccof8,icof8,ecof8,tcof8, xinc, yinc, zinc)
-       
+
+
     !   CALL SRC2LVL(ng, ndir, srcm1, sigt, errmul)
-!         12/ error check by 2nd -order estimation 
-!         13/ query ok/ko ? 
-!         14/ si ok :
       ENDIF
 
       IF (ok) THEN 
@@ -282,7 +325,7 @@
         ENDDO
 !      - write the outgoing angular flux of node-0 
 !            on the fine-mesh boundary flux
-         CALL SPLITBOUND0(xinc, yinc, zinc, nn, ng,nb,
+         CALL SPLITBOUND0(nn, ng,nb,
      &                   imin, imax,jmin,jmax,kmin,kmax,
      &                   nx,ny,nz,
      &                   bflx, bfly, bflz, fout0)
@@ -290,10 +333,47 @@
           !         - return 
           RETURN
 
-      ELSE IF((imax-imin)>2) THEN
+      ELSE IF((imax-imin)>1) THEN
 !         15/ si ko : 
 !        - call recursively the subroutine for the 8 nodes of level-1
 
+
+        asrcmtps1 = asrcm1(:,:,:,xinc+2*(yinc-1) + 4*(zinc-1))  
+        aflxtps1 = aflx1(:,:, xinc+2*(yinc-1) + 4*(zinc-1))
+        xshomtps1 = xshom1(:,  xinc+2*(yinc-1) + 4*(zinc-1))
+
+        asrcmtps2 = asrcm1(:,:,:,3-xinc+2*(yinc-1) + 4*(zinc-1))  
+        aflxtps2 = aflx1(:,:, 3-xinc+2*(yinc-1) + 4*(zinc-1))
+        xshomtps2 = xshom1(:,  3-xinc+2*(yinc-1) + 4*(zinc-1))
+
+        asrcmtps3= asrcm1(:,:,:,xinc+2*(2-yinc) + 4*(zinc-1))  
+        aflxtps3= aflx1(:,:, xinc+2*(2-yinc) + 4*(zinc-1))
+        xshomtps3= xshom1(:,  xinc+2*(2-yinc) + 4*(zinc-1))
+
+        asrcmtps4= asrcm1(:,:,:,3-xinc + 2*(2-yinc) + 4*(zinc-1))  
+        aflxtps4= aflx1(:,:, 3-xinc + 2*(2-yinc) + 4*(zinc-1))
+        xshomtps4= xshom1(:,  3-xinc + 2*(2-yinc) + 4*(zinc-1))
+
+        asrcmtps5= asrcm1(:,:,:,xinc + 2*(yinc-1) + 4*(2-zinc))  
+        aflxtps5= aflx1(:,:, xinc + 2*(yinc-1) + 4*(2-zinc))
+        xshomtps5= xshom1(:,  xinc + 2*(yinc-1) + 4*(2-zinc))
+
+        asrcmtps6= asrcm1(:,:,:,3-xinc + 2*(yinc-1) + 4*(2-zinc))  
+        aflxtps6= aflx1(:,:, 3-xinc + 2*(yinc-1) + 4*(2-zinc))
+        xshomtps6= xshom1(:,  3-xinc + 2*(yinc-1) + 4*(2-zinc))  
+
+        asrcmtps7= asrcm1(:,:,:,xinc+2*(2-yinc) + 4*(2-zinc))  
+        aflxtps7= aflx1(:,:, xinc+2*(2-yinc) + 4*(2-zinc))
+        xshomtps7= xshom1(:,  xinc+2*(2-yinc) + 4*(2-zinc))
+
+        asrcmtps8= asrcm1(:,:,:,3-xinc + 2*(2-yinc) + 4*(2-zinc))  
+        aflxtps8= aflx1(:,:, 3-xinc + 2*(2-yinc) + 4*(2-zinc))
+        xshomtps8= xshom1(:,  3-xinc + 2*(2-yinc) + 4*(2-zinc))
+
+        asrcm0 = asrcmtps1
+        aflx0  = aflxtps1
+        xshom0 = xshomtps1
+
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
      &                             nx,ny, nz,
      &                             xinc,yinc,zinc, oct,
@@ -304,12 +384,20 @@
      &   (2*kmin + (zinc-1)*(kmax-kmin+2))/2,
      &   (kmin + kmax + (zinc-1)*(jmax-jmin))/2,
      &                             niv+1,
-     &                             delt, sigt,
+     &                             sigt,
      &                             mu,eta,ksi,w,
      &                             sgnc,sgni,sgne,sgnt,
      &                             zreg,asrc,aflx,
-     &                             bflx, bfly, bflz)
-
+     &                             bflx, bfly, bflz,
+     &                             aflx0, aflx1,xshom0, xshom1,
+     &                             asrcm0, asrcm1,finc0,finc1,
+     &                             fout0,fout1,ccof,icof,ecof,tcof,
+     &                             ccof8,icof8,ecof8,tcof8,
+     &                             errcor,errmul,ok,delt3,i,j,k,r)
+      
+      asrcm0 = asrcmtps2
+      aflx0  = aflxtps2
+      xshom0 = xshomtps2
 
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
      &                             nx,ny, nz,
@@ -321,12 +409,20 @@
      &   (2*kmin + (zinc-1)*(kmax-kmin+2))/2,
      &   (kmin + kmax + (zinc-1)*(jmax-jmin))/2,
      &                             niv+1,
-     &                             delt, sigt,
+     &                             sigt,
      &                             mu,eta,ksi,w,
      &                             sgnc,sgni,sgne,sgnt,
      &                             zreg,asrc,aflx,
-     &                             bflx, bfly, bflz)
+     &                             bflx, bfly, bflz,
+     &                             aflx0, aflx1,xshom0, xshom1,
+     &                             asrcm0, asrcm1,finc0,finc1,
+     &                             fout0,fout1,ccof,icof,ecof,tcof,
+     &                             ccof8,icof8,ecof8,tcof8,
+     &                             errcor,errmul,ok,delt3,i,j,k,r)
 
+      asrcm0 = asrcmtps3
+      aflx0  = aflxtps3
+      xshom0 = xshomtps3
 
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
      &                             nx,ny, nz,
@@ -338,12 +434,20 @@
      &   (2*kmin + (zinc-1)*(kmax-kmin+2))/2,
      &   (kmin + kmax + (zinc-1)*(jmax-jmin))/2,
      &                             niv+1,
-     &                             delt, sigt,
+     &                             sigt,
      &                             mu,eta,ksi,w,
      &                             sgnc,sgni,sgne,sgnt,
      &                             zreg,asrc,aflx,
-     &                             bflx, bfly, bflz)
+     &                             bflx, bfly, bflz,
+     &                             aflx0, aflx1,xshom0, xshom1,
+     &                             asrcm0, asrcm1,finc0,finc1,
+     &                             fout0,fout1,ccof,icof,ecof,tcof,
+     &                             ccof8,icof8,ecof8,tcof8,
+     &                             errcor,errmul,ok,delt3,i,j,k,r)
 
+      asrcm0 = asrcmtps4
+      aflx0  = aflxtps4
+      xshom0 = xshomtps4
 
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
      &                             nx,ny, nz,
@@ -355,16 +459,22 @@
      &   (2*kmin + (zinc-1)*(kmax-kmin+2))/2,
      &   (kmin + kmax + (zinc-1)*(jmax-jmin))/2,
      &                             niv+1,
-     &                             delt, sigt,
+     &                             sigt,
      &                             mu,eta,ksi,w,
      &                             sgnc,sgni,sgne,sgnt,
      &                             zreg,asrc,aflx,
-     &                             bflx, bfly, bflz)
+     &                             bflx, bfly, bflz,
+     &                             aflx0, aflx1,xshom0, xshom1,
+     &                             asrcm0, asrcm1,finc0,finc1,
+     &                             fout0,fout1,ccof,icof,ecof,tcof,
+     &                             ccof8,icof8,ecof8,tcof8,
+     &                             errcor,errmul,ok,delt3,i,j,k,r)
 
 
 !-----------------------------------------------------------------------
-
-
+      asrcm0 = asrcmtps5
+      aflx0  = aflxtps5
+      xshom0 = xshomtps5
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
      &                             nx,ny, nz,
      &                             xinc,yinc,zinc, oct,
@@ -375,12 +485,20 @@
      &   (2*kmin + (2-zinc)*(kmax-kmin+2))/2,
      &   (kmin + kmax + (2-zinc)*(kmax-kmin))/2,
      &                             niv+1,
-     &                             delt, sigt,
+     &                             sigt,
      &                             mu,eta,ksi,w,
      &                             sgnc,sgni,sgne,sgnt,
      &                             zreg,asrc,aflx,
-     &                             bflx, bfly, bflz)
+     &                             bflx, bfly, bflz,
+     &                             aflx0, aflx1,xshom0, xshom1,
+     &                             asrcm0, asrcm1,finc0,finc1,
+     &                             fout0,fout1,ccof,icof,ecof,tcof,
+     &                             ccof8,icof8,ecof8,tcof8,
+     &                             errcor,errmul,ok,delt3,i,j,k,r)
 
+      asrcm0 = asrcmtps6
+      aflx0  = aflxtps6
+      xshom0 = xshomtps6
 
 
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
@@ -393,12 +511,19 @@
      &   (2*kmin + (2-zinc)*(kmax-kmin+2))/2,
      &   (kmin + kmax + (2-zinc)*(kmax-kmin))/2,
      &                             niv+1,
-     &                             delt, sigt,
+     &                             sigt,
      &                             mu,eta,ksi,w,
      &                             sgnc,sgni,sgne,sgnt,
      &                             zreg,asrc,aflx,
-     &                             bflx, bfly, bflz)        
-
+     &                             bflx, bfly, bflz,
+     &                             aflx0, aflx1,xshom0, xshom1,
+     &                             asrcm0, asrcm1,finc0,finc1,
+     &                             fout0,fout1,ccof,icof,ecof,tcof,
+     &                             ccof8,icof8,ecof8,tcof8,
+     &                             errcor,errmul,ok,delt3,i,j,k,r)      
+      asrcm0 = asrcmtps7
+      aflx0  = aflxtps7
+      xshom0 = xshomtps7
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
      &                             nx,ny, nz,
      &                             xinc,yinc,zinc, oct,
@@ -409,12 +534,19 @@
      &   (2*kmin + (2-zinc)*(kmax-kmin+2))/2,
      &   (kmin + kmax + (2-zinc)*(kmax-kmin))/2,
      &                             niv+1,
-     &                             delt, sigt,
+     &                             sigt,
      &                             mu,eta,ksi,w,
      &                             sgnc,sgni,sgne,sgnt,
      &                             zreg,asrc,aflx,
-     &                             bflx, bfly, bflz)        
-
+     &                             bflx, bfly, bflz,
+     &                             aflx0, aflx1,xshom0, xshom1,
+     &                             asrcm0, asrcm1,finc0,finc1,
+     &                             fout0,fout1,ccof,icof,ecof,tcof,
+     &                             ccof8,icof8,ecof8,tcof8,
+     &                             errcor,errmul,ok,delt3,i,j,k,r)       
+      asrcm0 = asrcmtps8
+      aflx0  = aflxtps8
+      xshom0 = xshomtps8
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
      &                             nx,ny, nz,
      &                             xinc,yinc,zinc, oct,
@@ -425,11 +557,16 @@
      &   (2*kmin + (2-zinc)*(kmax-kmin+2))/2,
      &   (kmin + kmax + (2-zinc)*(kmax-kmin))/2,
      &                             niv+1,
-     &                             delt, sigt,
+     &                             sigt,
      &                             mu,eta,ksi,w,
      &                             sgnc,sgni,sgne,sgnt,
      &                             zreg,asrc,aflx,
-     &                             bflx, bfly, bflz)        
+     &                             bflx, bfly, bflz,
+     &                             aflx0, aflx1,xshom0, xshom1,
+     &                             asrcm0, asrcm1,finc0,finc1,
+     &                             fout0,fout1,ccof,icof,ecof,tcof,
+     &                             ccof8,icof8,ecof8,tcof8,
+     &                             errcor,errmul,ok,delt3,i,j,k,r)       
 
     !- write the outgoing angular flux of node-0 on the fine-mesh
     ! boundary flux
@@ -442,7 +579,7 @@
      &                      aflx,aflx1)
 
 
-            CALL SPLITBOUND1(xinc, yinc, zinc,nn,ng,nb,
+            CALL SPLITBOUND1(nn,ng,nb,
      &                      imin, imax,jmin,jmax,kmin,kmax,
      &                      nx,ny,nz,
      &                      bflx, bfly, bflz, fout1)
@@ -450,373 +587,3 @@
       ENDIF
 
       END SUBROUTINE RECADA_ONE_OCTANT
-!----------------------------------------------------------------------
-!----------------------------------------------------------------------
-      SUBROUTINE SPLITAFLX1(nn,nr,nc,nx,ny,nz,
-     &                      imin,imax,jmin,jmax,kmin,kmax,
-     &                      aflx,aflx1)
-
-        IMPLICIT NONE
-
-        INTEGER, PARAMETER :: n8=8
-        INTEGER, INTENT(IN) :: nn,nr,nc,imin,imax,jmin,jmax,kmin,kmax
-        INTEGER, INTENT(IN) :: nx,ny,nz
-        REAL, INTENT(IN) :: aflx1(nn,nc,n8)
-        REAL, INTENT(OUT) :: aflx(nn,nr,nc)
-
-        INTEGER :: i_half,j_half,k_half,cnt,icnt,jcnt,kcnt
-        INTEGER  :: itot,jtot,ktot,ii,jj,kk,r,x,y,z
-
-        i_half = (imin+imax)/2
-        itot   = (imax-imin)/2
-        j_half = (jmin+jmax)/2
-        jtot   = (jmax-jmin)/2
-        k_half = (kmin+kmax)/2
-        ktot   = (kmax-kmin)/2
-
-        cnt = 1
-        kcnt = kmin
-        DO kk =0,1
-            jcnt =jmin
-            DO jj =0,1 
-                icnt = imin
-                DO ii =0,1 
-                   DO z= kcnt, kcnt+ktot
-                   DO y= jcnt, jcnt+jtot
-                   DO x= icnt, icnt+itot
-                      r = ((z-1)*ny + (y-1))*nx + x 
-                      aflx(:,r,:) = aflx1(:,:,cnt)
-                   ENDDO
-                   ENDDO
-                   ENDDO
-                   cnt = cnt + 1 
-                   icnt = i_half + 1
-                ENDDO
-               jcnt = j_half + 1
-            ENDDO
-           kcnt = k_half + 1
-        ENDDO  
-
-      END SUBROUTINE SPLITAFLX1
-
-
-      SUBROUTINE XSSRCHOMO(nn,ng,nr,nx,ny, ndir,
-     &                  imin,imax,jmin,jmax,kmin,kmax,
-     &                  sigt, zreg, aflx, w, asrc, xshom1, xshom0,
-     &                  srchomo1, srchomo0)
-      ! inputs
-      IMPLICIT NONE
-
-      INTEGER, PARAMETER :: n8 = 8, nc = 4
-      INTEGER, INTENT(IN) :: nn,ng,nr,ndir,
-     &           imin,imax,jmin,jmax,kmin,kmax,nx,ny
-      
-      INTEGER, INTENT(IN) :: zreg(nr)
-      REAL(KIND=8), INTENT(IN)    :: w(ndir)
-      REAL, INTENT(IN)    :: sigt(ng,*)
-      REAL, INTENT(IN)    :: aflx(ng,ndir,nr,nc)
-      REAL, INTENT(IN)    :: asrc(nn,nr,nc)
-      ! output 
-      REAL, INTENT(OUT)    :: xshom1(ng,n8), srchomo1(nn,nc,n8)
-      REAL, INTENT(OUT)    :: xshom0(ng), srchomo0(nn,nc)
-      
-      ! locals 
-      REAL(KIND=8)    :: flxoct(ng,nr)
-      INTEGER :: kk,jj,ii,cnt,icnt,jcnt,kcnt,x,y,z,r,d,
-     &           i_half,j_half,k_half,itot,ktot,jtot,m
-      REAL(KIND=8) :: aux(ng,n8), auy(ng,n8)
-
-      i_half = (imin+imax)/2
-      itot   = (imax-imin)/2
-      j_half = (jmin+jmax)/2
-      jtot   = (jmax-jmin)/2
-      k_half = (kmin+kmax)/2
-      ktot   = (kmax-kmin)/2
-
-      flxoct = 0.0
-      DO z=kmin,kmax
-        DO y=jmin,jmax
-            DO x=imin,imax
-                DO d=1,ndir
-                r = ((z-1)*ny + (y-1))*nx + x 
-                flxoct(:,r) = flxoct(:,r) + 8.0*w(d)*aflx(:,d,r,1)
-                ENDDO
-            ENDDO 
-        ENDDO
-      ENDDO
-
-      aux = 0.0D0
-      auy = 0.0D0
-      srchomo1 = 0.0D0
-
-      cnt = 1
-      kcnt = kmin
-      DO kk =0,1
-          jcnt =jmin
-          DO jj =0,1 
-              icnt = imin
-              DO ii =0,1 
-                 DO z= kcnt, kcnt+ktot
-                 DO y= jcnt, jcnt+jtot
-                 DO x= icnt, icnt+itot
-                    r = ((z-1)*ny + (y-1))*nx + x 
-                    m = zreg(r)
-                    aux(:,cnt) = aux(:,cnt) + sigt(:,m) * flxoct(:,r)
-                    auy(:,cnt) = auy(:,cnt) + flxoct(:,r)
-                    srchomo1(:,:,cnt) = srchomo1(:,:,cnt) 
-     &                                + asrc(:,r,:)
-                 ENDDO
-                 ENDDO
-                 ENDDO
-                 cnt = cnt + 1 
-                 icnt = i_half + 1
-              ENDDO
-             jcnt = j_half + 1
-          ENDDO
-         kcnt = k_half + 1
-      ENDDO
-!   &                      + asrc(:,r,4)*4/(kmax-kmin)**2
-!   &                      + asrc(:,r,1)*(2*z - 2*kcnt + ktot)
-
-
-      
-      xshom1(:,:) = aux(:,:)/auy(:,:)
-      xshom0 = sum(aux, DIM=2)/sum(auy, DIM=2)
-
-      !!faux
-      srchomo1 = srchomo1/((itot+1)*(jtot+1)*(ktot+1))  
-      srchomo0(:,1) = sum(srchomo1(:,1,:), DIM=2)
-
-      cnt = 0
-      DO ii =0,1
-        DO jj = 0,1
-          DO kk = 0,1
-            cnt = cnt + 1
-            srchomo0(:,2) = srchomo0(:,2) + srchomo1(:,1,cnt)*(ii-0.5)
-     &                      + srchomo1(:,2,cnt)/2
-            srchomo0(:,3) = srchomo0(:,3) + srchomo1(:,1,cnt)*(jj-0.5)
-     &                      + srchomo1(:,3,cnt)/2
-            srchomo0(:,4) = srchomo0(:,4) + srchomo1(:,1,cnt)*(kk-0.5)
-     &                      + srchomo1(:,4,cnt)/2
-          ENDDO
-        ENDDO
-      ENDDO
-
-      srchomo0  = srchomo0/8
-
-      END SUBROUTINE XSSRCHOMO
-
-
-
-
-      SUBROUTINE MERGEBOUND(xinc, yinc, zinc, nn, ng,nb,
-     &                      imin, imax,jmin,jmax,kmin,kmax,
-     &                      nx,ny,nz,
-     &                      bflx, bfly, bflz, finc1, finc0)
-
-      IMPLICIT NONE
-
-! Define the projection of the angular flux on the boundary
-! on level 1 and level 0
-! finc0(nn, nb, nb): on level 0 for each group for each direction
-! on each 3 spatial component on each 3 incoming face
-! finc1(nn, nb, nb, ns) same but on level 1 and for each 4 subfaces
-       
-      INTEGER ,PARAMETER :: ns = 4
-
-      INTEGER, INTENT(IN) :: nn, ng,nb,xinc,yinc,zinc  
-      INTEGER, INTENT(IN) :: imin, imax,jmin,jmax,kmin,kmax, nx,ny,nz
-      REAL, INTENT(IN)    :: bflx(nn,nb,ny,nz),
-     &                       bfly(nn,nb,nx,nz),
-     &                       bflz(nn,nb,nx,ny)
-    
-      REAL, INTENT(INOUT)  :: finc1(nn,nb,nb,ns), finc0(nn,nb,nb)
-
-      INTEGER :: cnt, icnt, jcnt, kcnt, ii,jj, kk,i,j,k
-      INTEGER :: i_half, j_half, k_half, itot,jtot,ktot
-
-      finc1 = 0.0
-      finc0 = 0.0
-
-      i_half = (imin+imax)/2
-      itot   = (imax-imin)/2
-      j_half = (jmin+jmax)/2
-      jtot   = (jmax-jmin)/2
-      k_half = (kmin+kmax)/2
-      ktot   = (kmax-kmin)/2
-      
-      cnt  = 1
-      kcnt = kmin
-      DO kk=0,1
-        jcnt = jmin
-        DO jj=0,1
-          DO k=kcnt, kcnt+ktot
-            DO j=jcnt, jcnt+jtot
-              finc1(:,:,1,cnt) = finc1(:,:,1,cnt) + bflx(:,:,j,k)
-            ENDDO
-          ENDDO
-          cnt = cnt + 1
-          jcnt = j_half + 1
-        ENDDO
-        kcnt = k_half + 1
-      ENDDO
-      
-      cnt  = 1
-      kcnt = kmin
-      DO kk=0,1
-        icnt = imin
-        DO ii=0,1
-          DO k=kcnt, kcnt+ktot
-            DO i=icnt, icnt+itot
-              finc1(:,:,2,cnt) = finc1(:,:,2,cnt) + bfly(:,:,i,k)
-            ENDDO
-          ENDDO
-        icnt = i_half + 1 
-        cnt = cnt + 1
-        ENDDO
-        kcnt = k_half + 1
-      ENDDO
-      
-      cnt = 1
-      jcnt = jmin
-      DO jj=0,1
-        icnt=imin
-        DO ii=0,1
-          DO j=jcnt, jcnt+jtot
-            DO i=icnt, icnt+itot
-               finc1(:,:,3,cnt) = finc1(:,:,3,cnt) + bflz(:,:,i,j)
-            ENDDO
-          ENDDO
-          icnt = i_half + 1 
-          cnt = cnt + 1
-        ENDDO
-        jcnt = j_half + 1 
-      ENDDO
-      finc1(:,:,1,:) = finc1(:,:,1,:)/((ktot+1)*(jtot+1))
-      finc1(:,:,2,:) = finc1(:,:,2,:)/((itot+1)*(ktot+1))
-      finc1(:,:,3,:) = finc1(:,:,3,:)/((itot+1)*(jtot+1))
-      finc0 = sum(finc1, DIM=4)/4
-
-
-      END SUBROUTINE MERGEBOUND
-
-!----------------------------------------------------------------------
-      
-      SUBROUTINE SPLITBOUND0(xinc, yinc, zinc, nn, ng,nb,
-     &                      imin, imax,jmin,jmax,kmin,kmax,
-     &                      nx,ny,nz,
-     &                      bflx, bfly, bflz, fout0)
-
-      IMPLICIT NONE
-      INTEGER ,PARAMETER :: ns = 4
-
-      INTEGER, INTENT(IN) :: nn, ng,nb,xinc, yinc, zinc 
-      INTEGER, INTENT(IN) :: imin, imax,jmin,jmax,kmin,kmax, nx,ny,nz
-      REAL, INTENT(IN)    :: fout0(nn,nb,nb)
-      REAL, INTENT(INOUT) :: bflx(nn,nb,ny,nz),
-     &                       bfly(nn,nb,nx,nz),
-     &                       bflz(nn,nb,nx,ny)
-
-      INTEGER :: i,j,k, xout, yout, zout
-      xout= 3-xinc
-      yout= 3-yinc
-      zout= 3-zinc
-
-      DO k=kmin, kmax
-        DO j=jmin, jmax
-          bflx(:,:,j,k) = fout0(:,:,1)
-        ENDDO
-      ENDDO
-      DO k=kmin, kmax
-        DO i=imin, imax
-          bfly(:,:,i,k) = fout0(:,:,2)
-        ENDDO
-      ENDDO
-      DO j=kmin, kmax
-        DO i=imin, imax
-          bflz(:,:,i,j) = fout0(:,:,3)
-        ENDDO
-      ENDDO
-      
-      END SUBROUTINE SPLITBOUND0
-
-
-      SUBROUTINE SPLITBOUND1(xinc, yinc, zinc,nn,ng,nb,
-     &                      imin, imax,jmin,jmax,kmin,kmax,
-     &                      nx,ny,nz,
-     &                      bflx, bfly, bflz, fout1)
-   
-         IMPLICIT NONE
-         INTEGER ,PARAMETER :: ns = 4
-   
-         INTEGER, INTENT(IN) :: nn, ng,nb,xinc,yinc, zinc 
-         INTEGER, INTENT(IN) :: imin, imax,jmin,jmax,kmin,kmax,nx,ny,nz
-         REAL, INTENT(IN)    :: fout1(nn,nb,nb,ns)
-         REAL, INTENT(INOUT) :: bflx(nn,nb,ny,nz),
-     &                       bfly(nn,nb,nx,nz),
-     &                       bflz(nn,nb,nx,ny)
-   
-         INTEGER :: i,j,k, xout, yout, zout
-         INTEGER :: cnt, icnt, jcnt, kcnt, ii,jj, kk
-         INTEGER :: i_half, j_half, k_half, itot, jtot, ktot
-
-         xout= 3-xinc
-         yout= 3-yinc
-         zout= 3-zinc
-
-         i_half = (imin+imax)/2
-         itot   = (imax-imin)/2
-         j_half = (jmin+jmax)/2
-         jtot   = (jmax-jmin)/2
-         k_half = (kmin+kmax)/2
-         ktot   = (kmax-kmin)/2
-         
-         cnt  = 1
-         kcnt = kmin
-         DO kk=0,1
-           jcnt = jmin
-           DO jj=0,1
-             DO k=kcnt, kcnt+ktot
-               DO j=jcnt, jcnt+jtot
-                bflx(:,:,j,k) =  fout1(:,:,1,cnt)
-               ENDDO
-             ENDDO
-             cnt = cnt + 1
-             jcnt = j_half + 1
-           ENDDO
-           kcnt = k_half + 1
-         ENDDO
-         
-         cnt  = 1
-         kcnt = kmin
-         DO kk=0,1
-           icnt = imin
-           DO ii=0,1
-             DO k=kcnt, kcnt+ktot
-               DO i=icnt, icnt+itot
-                 bfly(:,:,i,k) = fout1(:,:,2,cnt)
-               ENDDO
-             ENDDO
-           icnt = i_half + 1
-           cnt = cnt + 1
-           ENDDO
-           kcnt = k_half + 1
-         ENDDO
-         
-         cnt = 1
-         jcnt = jmin
-         DO jj=0,1
-           icnt=imin
-           DO ii=0,1
-             DO j=jcnt, jcnt+jtot
-               DO i=icnt, icnt+itot
-                  bflz(:,:,i,j) = fout1(:,:,3,cnt)
-               ENDDO
-             ENDDO
-             icnt = i_half + 1
-             cnt = cnt + 1
-           ENDDO
-           jcnt = j_half + 1
-         ENDDO
-         
-      END SUBROUTINE SPLITBOUND1

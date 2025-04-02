@@ -346,9 +346,9 @@
             DO y=yinc,yout,yout-yinc
 !              Prepare sweep along x, incoming flux.
                s=(z-1)*ny+y
-               xaux(:,1)=finc(:,1,zz,s)
-               xaux(:,2)=finc(:,2,zz,s)
-               xaux(:,3)=finc(:,3,zz,s)
+               xaux(:,1)=finc(:,1,xx,s)
+               xaux(:,2)=finc(:,2,xx,s)
+               xaux(:,3)=finc(:,3,xx,s)
 
 !              Sweep along x.
                DO x=xinc,xout,xout-xinc

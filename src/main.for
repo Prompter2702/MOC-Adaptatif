@@ -10,16 +10,18 @@
 
       IMPLICIT NONE
 
-      INTEGER, PARAMETER :: ng = 1, ndir = 3, ndim = 3
+      INTEGER, PARAMETER :: ng = 1, ndir = 1, ndim = 3
       INTEGER, PARAMETER :: nn = ndir*ng
       INTEGER, PARAMETER :: nc=4, nb=3, nd = ndir*8
       INTEGER, PARAMETER :: nbd = nb*ndim
-      INTEGER, PARAMETER :: nx = 64, ny = 64, nz = 64
+      INTEGER, PARAMETER :: nx = 8
+      INTEGER, PARAMETER :: ny = 8
+      INTEGER, PARAMETER :: nz = 8
       INTEGER, PARAMETER :: nbfx = ny*nz,nbfy=nx*nz,nbfz=nx*ny
       INTEGER, PARAMETER :: nani=0,nhrm=1 
       INTEGER, PARAMETER :: nr = nx*ny*nz , nh = 1
       REAL, PARAMETER :: delt = 1.0
-      INTEGER, PARAMETER :: nmat = 2
+      INTEGER, PARAMETER :: nmat = 1
 ! Nombre de milieux
 
       INTEGER, PARAMETER :: noct = 8
@@ -41,43 +43,25 @@
       REAL    :: xaux(nn,nb),yaux(nn,nx,nb),zaux(nn,nx,ny,nb)
       INTEGER :: rdir(nd),dira(nr),dirf(nr)
       LOGICAL :: lgki =.FALSE.
+      REAL    :: delt3(3)
 
-      INTEGER :: r,o
-      
+      delt3 = (/delt, delt, delt/)
+
       zreg = 1
-      DO r=5,nr
-        zreg(r) = 2
-      ENDDO
-
       sigs = 0.0
-      sigt(:,1) = 0.15
-      sigt(:,2) = 0.47
-      
+      sigt = 1.0
+
       bflx = 0.0
       bfly = 0.0
       bflz = 0.0
 
-      bflx(:,1,:,:,:) = 1.2 
-      bfly(:,1,:,:,:) = 1.2    
-      bflz(:,1,:,:,:) = 1.2
+      bflx(:,1,1,1,:) = 2.0
+      bfly(:,1,1,1,:) = 2.0    
+      bflz(:,1,1,1,:) = 2.0
 
-      aflx = 0.0
+      aflx = 1.0
       asrc = 0.0
       srcm = 0.0
-
-      DO r=1,4
-        srcm(:,r,1,1) = 0.18
-      ENDDO
-      DO r=5,nr
-        srcm(:,r,1,1) = 0.564 
-      ENDDO
-
-      DO r = 1,nr
-        DO o = 1,noct
-            aflx(:,r,1,o) = 1.2
-        ENDDO
-      ENDDO
-
 
     !   print *,"av flux", aflx(:,:,1,1)
       
@@ -100,13 +84,38 @@
      &                     zreg, 
      &                     dira,dirf,
      &                     lgki,
-     &                     flxm)
+     &                     flxm, delt3)
         
 
+      print *, (1.0-EXP(-SQRT(2.0)))*SQRT(2.0)
+
     !   print *,"Flux final", aflx(:,:,1,1)
-    !   print *, bflx  
-    !   print *, bfly  
-    !   print *, bflz  
+      print *,"bflx", SUM(bflx(:,1,:,2,1), dim=2)/(nx*ny)
+      print *,"bfly", SUM(bfly(:,1,:,2,1), dim=2)/(nx*ny)
+      print *,"bflz", SUM(bflz(:,1,:,2,1), dim=2)/(nx*ny)
+
+      CALL VOLVTK(1,ny,nz,
+     &           .FALSE.,.TRUE.,.TRUE.,
+     &            delt, 0.0, 0.0,
+     &            (/delt, delt, delt/),
+     &            bflx(1,1,:,2,1),"boundx.vtk")
+      
+      CALL VOLVTK(nx,1,ny,
+     &           .TRUE.,.FALSE.,.TRUE.,
+     &             0.0, delt, 0.0,
+     &            (/delt, delt, delt/),
+     &            bfly(1,1,:,2,1),"boundy.vtk")
+      
+      CALL VOLVTK(nx,ny,1,
+     &           .TRUE.,.TRUE.,.FALSE.,
+     &            0.0, 0.0, delt, 
+     &            (/delt, delt, delt/),
+     &            bflz(1,1,:,2,1),"boundz.vtk")
+     
+    !   CALL VOLVTK(nx,1,nz,0.0,delt,0.0, (/delt, delt, delt/),
+    !  &           bfly(1,1,:,2,1),"boundy.vtk")
+    !   CALL VOLVTK(nx,ny,1,0.0,0.0,delt, (/delt, delt, delt/),
+    !  &            bflz(1,1,:,2,1) ,"boundz.vtk")
 
       print *, 'FIN'
     !  

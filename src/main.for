@@ -10,7 +10,7 @@
 
       IMPLICIT NONE
 
-      INTEGER, PARAMETER :: ng = 1, ndir = 3, ndim = 3
+      INTEGER, PARAMETER :: ng = 1, ndir = 1, ndim = 3
       INTEGER, PARAMETER :: nn = ndir*ng
       INTEGER, PARAMETER :: nc=4, nb=3, nd = ndir*8
       INTEGER, PARAMETER :: nbd = nb*ndim
@@ -54,31 +54,38 @@
 
       zreg = 1
       sigs = 0.0
-      sigt = 0.1
+      sigt = 1.0
 
-      bflx = 0.0
-      bfly = 0.0
-      bflz = 0.0
+    !   bflx = 0.0
+    !   bfly = 0.0
+    !   bflz = 0.0
 
-    !   bflx(:,1,:,1,:) = 2.0
-    !   bfly(:,1,:,1,:) = 2.0    
-    !   bflz(:,1,:,1,:) = 2.0
+      bflx(:,1,:,1,:) = 2.0
+      bfly(:,1,:,1,:) = 2.0    
+      bflz(:,1,:,1,:) = 2.0
 
       aflx = 1.0 
       asrc = 0.0
       srcm = 0.0
 
+    !   DO z=nz/2,nz/2+1
+    !     DO y=ny/2,ny/2+1
+    !         DO x=nx/2,nx/2+1
+    !             r= x + (y-1)*nx + (z-1)*nx*ny
+    !             srcm(:,r,1,1) = 8.0
+    !         ENDDO
+    !     ENDDO
+    !   ENDDO
 
-      DO z=nz/2,nz/2+1
-        DO y=ny/2,ny/2+1
-            DO x=nx/2,nx/2+1
-                r= x + (y-1)*nx + (z-1)*nx*ny
-                srcm(:,r,1,1) = 8.0
-            ENDDO
-        ENDDO
-      ENDDO
+    !   DO z=1,2
+    !     DO y=1,2
+    !         DO x=1,2
+    !             r= x + (y-1)*nx + (z-1)*nx*ny
+    !             srcm(:,r,1,1) = 12.0
+    !         ENDDO
+    !     ENDDO
+    !   ENDDO
 
-                
     !   print *,"av flux", aflx(:,:,1,1)
       
       CALL COFSGN(sgnc,sgni,sgne,sgnt,nc,nbd,ndim,2)
@@ -108,28 +115,30 @@
       PRINT *, "Temps:", REAL(count_end - count_start)/count_rate,
      &                 " secondes"
 
-    !   print *,"Flux final", aflx(:,:,1,1)
-      print *,"bflx", SUM(bflx(:,1,:,2,1), dim=2)/(nx*ny)
-      print *,"bfly", SUM(bfly(:,1,:,2,1), dim=2)/(nx*ny)
-      print *,"bflz", SUM(bflz(:,1,:,2,1), dim=2)/(nx*ny)
 
-      CALL VOLVTK(1,ny,nz,
-     &           .FALSE.,.TRUE.,.TRUE.,
-     &            delt, 0.0, 0.0,
-     &            (/delt, delt, delt/),
-     &            bflx(1,1,:,2,1),"boundx.vtk")
+      print *,"bflx", SUM(bflx(1,1,:,2,1), dim=1)/(ny*nz)
+      print *,"bfly", SUM(bfly(1,1,:,2,1), dim=1)/(nx*nz)
+      print *,"bflz", SUM(bflz(1,1,:,2,1), dim=1)/(nx*ny)
+
+      print *,"Flux final", aflx(:,:,1,1)
+
+      !   CALL VOLVTK(1,ny,nz,
+    !  &           .FALSE.,.TRUE.,.TRUE.,
+    !  &            delt, 0.0, 0.0,
+    !  &            (/delt, delt, delt/),
+    !  &            bflx(1,1,:,2,1),"boundx.vtk")
       
-      CALL VOLVTK(nx,1,ny,
-     &           .TRUE.,.FALSE.,.TRUE.,
-     &             0.0, delt, 0.0,
-     &            (/delt, delt, delt/),
-     &            bfly(1,1,:,2,1),"boundy.vtk")
+    !   CALL VOLVTK(nx,1,ny,
+    !  &           .TRUE.,.FALSE.,.TRUE.,
+    !  &             0.0, delt, 0.0,
+    !  &            (/delt, delt, delt/),
+    !  &            bfly(1,1,:,2,1),"boundy.vtk")
       
-      CALL VOLVTK(nx,ny,1,
-     &           .TRUE.,.TRUE.,.FALSE.,
-     &            0.0, 0.0, delt, 
-     &            (/delt, delt, delt/),
-     &            bflz(1,1,:,2,1),"boundz.vtk")
+    !   CALL VOLVTK(nx,ny,1,
+    !  &           .TRUE.,.TRUE.,.FALSE.,
+    !  &            0.0, 0.0, delt, 
+    !  &            (/delt, delt, delt/),
+    !  &            bflz(1,1,:,2,1),"boundz.vtk")
      
     !   CALL VOLVTK(nx,1,nz,0.0,delt,0.0, (/delt, delt, delt/),
     !  &           bfly(1,1,:,2,1),"boundy.vtk")

@@ -49,19 +49,27 @@
       cnt = 1
       kcnt = kmin
       DO kk =0,1
-          jcnt =jmin
-          DO jj =0,1 
-              icnt = imin
-              DO ii =0,1 
-                 DO z= kcnt, kcnt+ktot
-                 DO y= jcnt, jcnt+jtot
-                 DO x= icnt, icnt+itot
-                    r = ((z-1)*ny + (y-1))*nx + x 
-                    m = zreg(r)
-                    aux(:,cnt) = aux(:,cnt) + sigt(:,m) * flxoct(:,r)
-                    auy(:,cnt) = auy(:,cnt) + flxoct(:,r)
-                    srchomo1(:,:,cnt) = srchomo1(:,:,cnt) 
-     &                                + asrc(:,r,:)
+        jcnt =jmin
+        DO jj =0,1 
+          icnt = imin
+          DO ii =0,1 
+            DO z= kcnt, kcnt+ktot
+            DO y= jcnt, jcnt+jtot
+            DO x= icnt, icnt+itot
+              r = ((z-1)*ny + (y-1))*nx + x 
+              m = zreg(r)
+              aux(:,cnt) = aux(:,cnt) + sigt(:,m) * flxoct(:,r)
+              auy(:,cnt) = auy(:,cnt) + flxoct(:,r)
+              srchomo1(:,:,cnt) = srchomo1(:,:,cnt) + asrc(:,r,:)
+                
+              srchomo1(:,2,cnt) = srchomo1(:,2,cnt) + (asrc(:,r,2)
+     &        + asrc(:,r,1)*(2*x-icnt+itot) )/(itot+1)
+     
+              srchomo1(:,3,cnt) = srchomo1(:,3,cnt) + ( asrc(:,r,3)
+     &        + asrc(:,r,1)*(2*y-jcnt+jtot) )/(jtot+1)
+
+              srchomo1(:,4,cnt) = srchomo1(:,4,cnt) + ( asrc(:,r,4)
+     &        + asrc(:,r,1)*(2*z-kcnt+ktot) )/(ktot+1)
                  ENDDO
                  ENDDO
                  ENDDO
@@ -139,27 +147,31 @@
         srchomo0 = 0.0D0
    
         DO z=kmin,kmax
-            DO y= jmin,jmax
-                DO x= imin,imax
-                    r = ((z-1)*ny + (y-1))*nx + x 
-                    m = zreg(r)
-                    aux(:) = aux(:) + sigt(:,m) * flxoct(:,r)
-                    auy(:) = auy(:) + flxoct(:,r)
-                    srchomo0(:,1) = srchomo0(:,1) + asrc(:,r,1)
-                    ! srchomo0(:,2:4) = srchomo0(:,2:4) + asrc(:,r,2:4)
-     &                         + 
-                ENDDO
+          DO y= jmin,jmax
+            DO x= imin,imax
+              r = ((z-1)*ny + (y-1))*nx + x 
+              m = zreg(r)
+              aux(:) = aux(:) + sigt(:,m) * flxoct(:,r)
+              auy(:) = auy(:) + flxoct(:,r)
+              srchomo0(:,1) = srchomo0(:,1) + asrc(:,r,1)
+              srchomo0(:,2) = srchomo0(:,2) + ( asrc(:,r,2)
+     &        + asrc(:,r,1)*(2*x-imax) )/(imax-imin+1)
+     
+              srchomo0(:,3) = srchomo0(:,3) + ( asrc(:,r,3)
+     &        + asrc(:,r,1)*(2*y-jmax) )/(jmax-jmin+1)
+
+              srchomo0(:,4) = srchomo0(:,4) + ( asrc(:,r,4)
+     &        + asrc(:,r,1)*(2*z-kmax) )/(kmax-kmin+1)
             ENDDO
+          ENDDO
         ENDDO
-        srchomo0(:,2:4) = asrc(:,imax+(jmax-1)*nx + (kmax-1)*nx*ny,2:4)
-     &   - asrc(:,imin+(jmin-1)*nx + (kmin-1)*nx*ny,2:4)
      
    !   & + asrc(:,r,4)*4/(kmax-kmin)**2
    !   & + asrc(:,r,1)*(2*z - 2*kcnt + ktot)
         
-        xshom0= aux/auy
-        srchomo0 = srchomo0/((imax-imin+1)*(jmax-jmin+1)*(kmax-kmin+1))  
-   
+      xshom0= aux/auy
+      srchomo0 = srchomo0/((imax-imin+1)*(jmax-jmin+1)*(kmax-kmin+1))  
+
             !    srchomo0(:,2) = srchomo0(:,2) + srchomo1(:,1,cnt)*(ii-0.5)
         ! &                      + srchomo1(:,2,cnt)/2
         !        srchomo0(:,3) = srchomo0(:,3) + srchomo1(:,1,cnt)*(jj-0.5)

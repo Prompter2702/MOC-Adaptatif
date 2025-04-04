@@ -258,7 +258,6 @@
       REAL, INTENT(IN)        :: delt3(3)
       INTEGER, INTENT(INOUT)  :: i,j,k,r 
 
-
       REAL :: aflxtps1(nn,nc), asrcmtps1(ng,ndir,nc), xshomtps1(ng)
       REAL :: aflxtps2(nn,nc), asrcmtps2(ng,ndir,nc), xshomtps2(ng)
       REAL :: aflxtps3(nn,nc), asrcmtps3(ng,ndir,nc), xshomtps3(ng)
@@ -267,6 +266,8 @@
       REAL :: aflxtps6(nn,nc), asrcmtps6(ng,ndir,nc), xshomtps6(ng)
       REAL :: aflxtps7(nn,nc), asrcmtps7(ng,ndir,nc), xshomtps7(ng)
       REAL :: aflxtps8(nn,nc), asrcmtps8(ng,ndir,nc), xshomtps8(ng)
+
+      REAL :: errtot
       
       fout1 = 0.0
 ! Error check by source-correction estimation
@@ -276,25 +277,25 @@
       CALL SRCCOR(ng,ndir,delt3/(2**niv),mu,eta,ksi,asrcm0,
      &            xshom0,errcor)
 
+      errtot = SUM(ABS(errcor))
+      errtot = 1.0
 
-      print *,errcor
-      STOP
+    !   print err
+    !   print *,errcor
 
 !     7/ query ok/ko? 
 !     Définir un critère 
       IF(imax-imin>0 .AND. jmax-jmin>0 
-     &.AND. kmax-kmin>0 .AND. errcor(1,1)>0) THEN
+     & .AND. kmax-kmin>0 .AND.  errtot >0.0) THEN
         ok = .FALSE.
       ELSE
         ok = .TRUE.
       ENDIF
-    !   IF(imax-imin>0 .AND. jmax-jmin>0 .AND. kmax-kmin>0) THEN
-    !     ok = .FALSE.
-    !   ELSE
-    !     ok = .TRUE.
-    !   ENDIF
+
+    !   print *, "ok", ok
 
       IF (.NOT. ok) THEN 
+
 
         CALL XSSRCHOMO1(nn,ng,nr,nx,ny, ndir,
      &                 imin, imax,jmin,jmax,kmin,kmax,
@@ -312,7 +313,6 @@
      &                    delt3/(2**(niv+1)),xshom1,
      &                    sgnc,sgni,sgne,sgnt,
      &                    ccof8,icof8,ecof8,tcof8)
-
         
 
         CALL SWEEP_8REGIONS(nn,2,asrcm1, finc1, aflx1, fout1,

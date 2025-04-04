@@ -145,10 +145,15 @@
                     m = zreg(r)
                     aux(:) = aux(:) + sigt(:,m) * flxoct(:,r)
                     auy(:) = auy(:) + flxoct(:,r)
-                    srchomo0(:,:) = srchomo0(:,:) + asrc(:,r,:)
+                    srchomo0(:,1) = srchomo0(:,1) + asrc(:,r,1)
+                    ! srchomo0(:,2:4) = srchomo0(:,2:4) + asrc(:,r,2:4)
+     &                         + 
                 ENDDO
             ENDDO
         ENDDO
+        srchomo0(:,2:4) = asrc(:,imax+(jmax-1)*nx + (kmax-1)*nx*ny,2:4)
+     &   - asrc(:,imin+(jmin-1)*nx + (kmin-1)*nx*ny,2:4)
+     
    !   & + asrc(:,r,4)*4/(kmax-kmin)**2
    !   & + asrc(:,r,1)*(2*z - 2*kcnt + ktot)
         
@@ -164,7 +169,7 @@
    
       END SUBROUTINE XSSRCHOMO0
 
-      SUBROUTINE MERGEBOUND0(nn, ng,nb,
+      SUBROUTINE MERGEBOUND0(nn,nb,
      &                      imin, imax,jmin,jmax,kmin,kmax,
      &                      nx,ny,nz,
      &                      bflx, bfly, bflz, finc0)
@@ -177,7 +182,7 @@
    ! on each 3 spatial component on each 3 incoming face
    ! finc1(nn, nb, nb, ns) same but on level 1 and for each 4 subfaces
          
-      INTEGER, INTENT(IN) :: nn, ng,nb 
+      INTEGER, INTENT(IN) :: nn,nb 
       INTEGER, INTENT(IN) :: imin, imax,jmin,jmax,kmin,kmax, nx,ny,nz
       REAL, INTENT(IN)    :: bflx(nn,nb,ny,nz),
      &                       bfly(nn,nb,nx,nz),

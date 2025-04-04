@@ -91,7 +91,7 @@
 !     Loop over octants of angular space in order defined by
 !     octant list "olst3D".
 
-      DO oc=8,8
+      DO oc=1,8
          oct=olst3D(oc)
 !        Index of outgoing side.
          xout=3-xinc(oct)
@@ -107,22 +107,16 @@
 
          CALL GIRSRC(nhrm,ng,ndir,nr,nh,nc,sphr(1,da),
      &               tmom(1,1,1,1),asrc(1,1,1,oct))
-        
          IF(lgki)CALL SPXPY(nr*nc,dsrc(1,1,1,oct),asrc(1,1,1,oct))
-
 
 !        Sweep.
         ! The boundary entries are computed on the exiting part
         ! in order to work only on the exiting part of the bdfl
-        DO i=1,nbfx
-            bflx(:,:,i,xout,oct) = bflx(:,:,i,xinc(oct),oct)
-        ENDDO
-        DO i=1,nbfy
-            bfly(:,:,i,yout,oct) = bflx(:,:,i,yinc(oct),oct)
-        ENDDO
-        DO i=1,nbfz
-            bflz(:,:,i,zout,oct) = bflx(:,:,i,zinc(oct),oct)
-        ENDDO
+        
+        bflx(:,:,:,xout,oct) = bflx(:,:,:,xinc(oct),oct)
+        bfly(:,:,:,yout,oct) = bfly(:,:,:,yinc(oct),oct)
+        bflz(:,:,:,zout,oct) = bflz(:,:,:,zinc(oct),oct)
+
 
 !     Niveau 0 doit être déjà fait :
         CALL XSSRCHOMO0(nn,ng,nr,nx,ny, ndir,
@@ -131,6 +125,7 @@
      &                 asrc(:,:,:,oct), xshom0,
      &                 asrcm0)
 
+
         CALL ONE_COEF3D(nn,ndir,ng,mu,eta,ksi,
      &                delt3,xshom0,
      &                sgnc(:,:,oct),sgni(:,:,oct),
@@ -138,7 +133,7 @@
      &                ccof,icof,ecof,tcof)
       
 
-        CALL MERGEBOUND0(nn, ng,nb,
+        CALL MERGEBOUND0(nn,nb,
      &                   1,nx,1,ny,1,nz,
      &                   nx,ny,nz,
      &                   bflx(:,:,:,xinc,oct),
@@ -276,16 +271,28 @@
       fout1 = 0.0
 ! Error check by source-correction estimation
 
+    !   print *,xshom0
+
       CALL SRCCOR(ng,ndir,delt3/(2**niv),mu,eta,ksi,asrcm0,
      &            xshom0,errcor)
 
+
+      print *,errcor
+      STOP
+
 !     7/ query ok/ko? 
 !     Définir un critère 
-      IF(imax-imin>0 .AND. jmax-jmin>0 .AND. kmax-kmin>0) THEN
+      IF(imax-imin>0 .AND. jmax-jmin>0 
+     &.AND. kmax-kmin>0 .AND. errcor(1,1)>0) THEN
         ok = .FALSE.
       ELSE
         ok = .TRUE.
       ENDIF
+    !   IF(imax-imin>0 .AND. jmax-jmin>0 .AND. kmax-kmin>0) THEN
+    !     ok = .FALSE.
+    !   ELSE
+    !     ok = .TRUE.
+    !   ENDIF
 
       IF (.NOT. ok) THEN 
 
@@ -293,6 +300,7 @@
      &                 imin, imax,jmin,jmax,kmin,kmax,
      &                 sigt, zreg, aflx, w, asrc, xshom1,
      &                 asrcm1)
+
 
         CALL MERGEBOUND1(nn, ng,nb,
      &                   imin, imax,jmin,jmax,kmin,kmax,
@@ -305,10 +313,10 @@
      &                    sgnc,sgni,sgne,sgnt,
      &                    ccof8,icof8,ecof8,tcof8)
 
+        
 
         CALL SWEEP_8REGIONS(nn,2,asrcm1, finc1, aflx1, fout1,
      &                     ccof8,icof8,ecof8,tcof8, xinc, yinc, zinc)
-
 
     !   CALL SRC2LVL(ng, ndir, srcm1, sigt, errmul)
       ENDIF
@@ -336,7 +344,6 @@
       ELSE IF((imax-imin)>1) THEN
 !         15/ si ko : 
 !        - call recursively the subroutine for the 8 nodes of level-1
-
 
         asrcmtps1 = asrcm1(:,:,:,xinc+2*(yinc-1) + 4*(zinc-1))  
         aflxtps1 = aflx1(:,:, xinc+2*(yinc-1) + 4*(zinc-1))

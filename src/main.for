@@ -10,13 +10,13 @@
 
       IMPLICIT NONE
 
-      INTEGER, PARAMETER :: ng = 1, ndir = 1, ndim = 3
+      INTEGER, PARAMETER :: ng = 1, ndir = 3, ndim = 3
       INTEGER, PARAMETER :: nn = ndir*ng
       INTEGER, PARAMETER :: nc=4, nb=3, nd = ndir*8
       INTEGER, PARAMETER :: nbd = nb*ndim
-      INTEGER, PARAMETER :: nx = 8
-      INTEGER, PARAMETER :: ny = 8
-      INTEGER, PARAMETER :: nz = 8
+      INTEGER, PARAMETER :: nx = 4
+      INTEGER, PARAMETER :: ny = 4
+      INTEGER, PARAMETER :: nz = 4
       INTEGER, PARAMETER :: nbfx = ny*nz,nbfy=nx*nz,nbfz=nx*ny
       INTEGER, PARAMETER :: nani=0,nhrm=1 
       INTEGER, PARAMETER :: nr = nx*ny*nz , nh = 1
@@ -45,24 +45,40 @@
       LOGICAL :: lgki =.FALSE.
       REAL    :: delt3(3)
 
+      INTEGER :: count_start, count_end, count_rate
+      INTEGER :: x,y,z,r
+  
+      CALL SYSTEM_CLOCK(count_start, count_rate)  ! Capture début
+  
       delt3 = (/delt, delt, delt/)
 
       zreg = 1
       sigs = 0.0
-      sigt = 1.0
+      sigt = 0.1
 
       bflx = 0.0
       bfly = 0.0
       bflz = 0.0
 
-      bflx(:,1,1,1,:) = 2.0
-      bfly(:,1,1,1,:) = 2.0    
-      bflz(:,1,1,1,:) = 2.0
+    !   bflx(:,1,:,1,:) = 2.0
+    !   bfly(:,1,:,1,:) = 2.0    
+    !   bflz(:,1,:,1,:) = 2.0
 
-      aflx = 1.0
+      aflx = 1.0 
       asrc = 0.0
       srcm = 0.0
 
+
+      DO z=nz/2,nz/2+1
+        DO y=ny/2,ny/2+1
+            DO x=nx/2,nx/2+1
+                r= x + (y-1)*nx + (z-1)*nx*ny
+                srcm(:,r,1,1) = 8.0
+            ENDDO
+        ENDDO
+      ENDDO
+
+                
     !   print *,"av flux", aflx(:,:,1,1)
       
       CALL COFSGN(sgnc,sgni,sgne,sgnt,nc,nbd,ndim,2)
@@ -85,9 +101,12 @@
      &                     dira,dirf,
      &                     lgki,
      &                     flxm, delt3)
-        
 
-      print *, (1.0-EXP(-SQRT(2.0)))*SQRT(2.0)
+      print *,flxm(1,:,1,1)
+
+      CALL SYSTEM_CLOCK(count_end, count_rate)    ! Capture fin
+      PRINT *, "Temps:", REAL(count_end - count_start)/count_rate,
+     &                 " secondes"
 
     !   print *,"Flux final", aflx(:,:,1,1)
       print *,"bflx", SUM(bflx(:,1,:,2,1), dim=2)/(nx*ny)
@@ -116,6 +135,13 @@
     !  &           bfly(1,1,:,2,1),"boundy.vtk")
     !   CALL VOLVTK(nx,ny,1,0.0,0.0,delt, (/delt, delt, delt/),
     !  &            bflz(1,1,:,2,1) ,"boundz.vtk")
+
+
+       CALL VOLVTK(nx,ny,nz,
+     &             .TRUE.,.TRUE.,.TRUE.,
+     &              0.0, 0.0, 0.0,                     
+     &              (/delt, delt, delt/),
+     &              flxm(1,:,1,1),"flxmtt.vtk")
 
       print *, 'FIN'
     !  

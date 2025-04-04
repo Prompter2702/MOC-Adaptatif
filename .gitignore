@@ -2,3 +2,5 @@ build/*
 mod/*
 sweeprecur
 fort.9
+*.vtk
+*.o

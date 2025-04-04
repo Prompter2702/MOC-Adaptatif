@@ -26,8 +26,8 @@
       
       CALL GAUSS_LU4(nquad,ndir, delt3, mu,eta, ksi, l4)
 
+      coeff(:) = (sigt(:)**2)/24.0
       DO d=1,ndir
-        coeff(:) = (sigt(:)**2)/24.0
         err(:,d) = srcm(:,d,2)*mu(d) 
      &           + srcm(:,d,3)*eta(d) 
      &           + srcm(:,d,4)*ksi(d)

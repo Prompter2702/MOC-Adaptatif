@@ -7,6 +7,7 @@
 
       USE SNQHRM
       USE SWEEP8ONE
+      USE FLGINC
 
       IMPLICIT NONE
 
@@ -14,9 +15,9 @@
       INTEGER, PARAMETER :: nn = ndir*ng
       INTEGER, PARAMETER :: nc=4, nb=3, nd = ndir*8
       INTEGER, PARAMETER :: nbd = nb*ndim
-      INTEGER, PARAMETER :: nx = 4
-      INTEGER, PARAMETER :: ny = 4
-      INTEGER, PARAMETER :: nz = 4
+      INTEGER, PARAMETER :: nx = 16
+      INTEGER, PARAMETER :: ny = 16
+      INTEGER, PARAMETER :: nz = 16
       INTEGER, PARAMETER :: nbfx = ny*nz,nbfy=nx*nz,nbfz=nx*ny
       INTEGER, PARAMETER :: nani=0,nhrm=1 
       INTEGER, PARAMETER :: nr = nx*ny*nz , nh = 1
@@ -46,7 +47,7 @@
       REAL    :: delt3(3)
 
       INTEGER :: count_start, count_end, count_rate
-      INTEGER :: x,y,z,r
+      INTEGER :: x,y,z,r,oct
   
       CALL SYSTEM_CLOCK(count_start, count_rate)  ! Capture début
   
@@ -56,13 +57,15 @@
       sigs = 0.0
       sigt = 1.0
 
-    !   bflx = 0.0
-    !   bfly = 0.0
-    !   bflz = 0.0
+      bflx = 0.0
+      bfly = 0.0
+      bflz = 0.0
 
-      bflx(:,1,:,1,:) = 2.0
-      bfly(:,1,:,1,:) = 2.0    
-      bflz(:,1,:,1,:) = 2.0
+    !   DO oct=1,8
+    !     bflx(:,1,:,xinc(oct),oct) = 2.0
+    !     bfly(:,1,:,yinc(oct),oct) = 2.0    
+    !     bflz(:,1,:,zinc(oct),oct) = 2.0
+    !   END DO
 
       aflx = 1.0 
       asrc = 0.0
@@ -77,14 +80,14 @@
     !     ENDDO
     !   ENDDO
 
-    !   DO z=1,2
-    !     DO y=1,2
-    !         DO x=1,2
-    !             r= x + (y-1)*nx + (z-1)*nx*ny
-    !             srcm(:,r,1,1) = 12.0
-    !         ENDDO
-    !     ENDDO
-    !   ENDDO
+      DO z=1,nz/2
+      DO y=1,ny/2
+      DO x=1,nx/2
+            r= x + (y-1)*nx + (z-1)*nx*ny
+            srcm(:,r,1,1) = 12.0
+          ENDDO
+        ENDDO
+      ENDDO
 
     !   print *,"av flux", aflx(:,:,1,1)
       
@@ -109,42 +112,38 @@
      &                     lgki,
      &                     flxm, delt3)
 
-      print *,flxm(1,:,1,1)
+    !   print *,flxm(1,:,1,1)
 
       CALL SYSTEM_CLOCK(count_end, count_rate)    ! Capture fin
       PRINT *, "Temps:", REAL(count_end - count_start)/count_rate,
      &                 " secondes"
 
-
       print *,"bflx", SUM(bflx(1,1,:,2,1), dim=1)/(ny*nz)
       print *,"bfly", SUM(bfly(1,1,:,2,1), dim=1)/(nx*nz)
       print *,"bflz", SUM(bflz(1,1,:,2,1), dim=1)/(nx*ny)
 
-      print *,"Flux final", aflx(:,:,1,1)
+    !   print *,"Flux final", aflx(:,:,1,1)
 
-      !   CALL VOLVTK(1,ny,nz,
-    !  &           .FALSE.,.TRUE.,.TRUE.,
-    !  &            delt, 0.0, 0.0,
-    !  &            (/delt, delt, delt/),
-    !  &            bflx(1,1,:,2,1),"boundx.vtk")
+!!!!! Création des fichiers VTK pour lire dans paraview
+
+        CALL VOLVTK(1,ny,nz,
+     &           .FALSE.,.TRUE.,.TRUE.,
+     &            delt, 0.0, 0.0,
+     &            (/delt, delt, delt/),
+     &            bflx(1,1,:,2,1),"boundx.vtk")
       
-    !   CALL VOLVTK(nx,1,ny,
-    !  &           .TRUE.,.FALSE.,.TRUE.,
-    !  &             0.0, delt, 0.0,
-    !  &            (/delt, delt, delt/),
-    !  &            bfly(1,1,:,2,1),"boundy.vtk")
+      CALL VOLVTK(nx,1,ny,
+     &           .TRUE.,.FALSE.,.TRUE.,
+     &             0.0, delt, 0.0,
+     &            (/delt, delt, delt/),
+     &            bfly(1,1,:,2,1),"boundy.vtk")
       
-    !   CALL VOLVTK(nx,ny,1,
-    !  &           .TRUE.,.TRUE.,.FALSE.,
-    !  &            0.0, 0.0, delt, 
-    !  &            (/delt, delt, delt/),
-    !  &            bflz(1,1,:,2,1),"boundz.vtk")
+      CALL VOLVTK(nx,ny,1,
+     &           .TRUE.,.TRUE.,.FALSE.,
+     &            0.0, 0.0, delt, 
+     &            (/delt, delt, delt/),
+     &            bflz(1,1,:,2,1),"boundz.vtk")
      
-    !   CALL VOLVTK(nx,1,nz,0.0,delt,0.0, (/delt, delt, delt/),
-    !  &           bfly(1,1,:,2,1),"boundy.vtk")
-    !   CALL VOLVTK(nx,ny,1,0.0,0.0,delt, (/delt, delt, delt/),
-    !  &            bflz(1,1,:,2,1) ,"boundz.vtk")
-
 
        CALL VOLVTK(nx,ny,nz,
      &             .TRUE.,.TRUE.,.TRUE.,

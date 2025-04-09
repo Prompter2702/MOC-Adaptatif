@@ -1,8 +1,10 @@
-      SUBROUTINE XSSRCHOMO1(nn,ng,nr,nx,ny, ndir,
+        SUBROUTINE XSSRCHOMO1(nn,ng,nr,nx,ny, ndir,
      &                 imin,imax,jmin,jmax,kmin,kmax,
      &                 sigt, zreg, aflx, w, asrc, xshom1,
      &                 srchomo1)
-! inputs
+
+! Compute the homogenized angular source and cross-section at lvl 1
+
       IMPLICIT NONE
 
       INTEGER, PARAMETER :: n8 = 8, nc = 4
@@ -60,16 +62,16 @@
               m = zreg(r)
               aux(:,cnt) = aux(:,cnt) + sigt(:,m) * flxoct(:,r)
               auy(:,cnt) = auy(:,cnt) + flxoct(:,r)
-              srchomo1(:,:,cnt) = srchomo1(:,:,cnt) + asrc(:,r,:)
+              srchomo1(:,1,cnt) = srchomo1(:,1,cnt) + asrc(:,r,1)
                 
               srchomo1(:,2,cnt) = srchomo1(:,2,cnt) + (asrc(:,r,2)
-     &        + asrc(:,r,1)*(2*x-icnt+itot) )/(itot+1)
+     &        + asrc(:,r,1)*(2*x-2*icnt-itot) )/(itot+1)
      
               srchomo1(:,3,cnt) = srchomo1(:,3,cnt) + ( asrc(:,r,3)
-     &        + asrc(:,r,1)*(2*y-jcnt+jtot) )/(jtot+1)
+     &        + asrc(:,r,1)*(2*y-2*jcnt-jtot) )/(jtot+1)
 
               srchomo1(:,4,cnt) = srchomo1(:,4,cnt) + ( asrc(:,r,4)
-     &        + asrc(:,r,1)*(2*z-kcnt+ktot) )/(ktot+1)
+     &        + asrc(:,r,1)*(2*z-2*kcnt-ktot) )/(ktot+1)
                  ENDDO
                  ENDDO
                  ENDDO
@@ -80,27 +82,9 @@
           ENDDO
          kcnt = k_half + 1
       ENDDO
-!   &                      + asrc(:,r,4)*4/(kmax-kmin)**2
-!   &                      + asrc(:,r,1)*(2*z - 2*kcnt + ktot)
      
       xshom1(:,:) = aux(:,:)/auy(:,:)
       srchomo1 = srchomo1/((itot+1)*(jtot+1)*(ktot+1))  
-
-    !   cnt = 0
-    !   DO ii =0,1
-    !     DO jj = 0,1
-    !       DO kk = 0,1
-    !         cnt = cnt + 1
-    !         srchomo0(:,2) = srchomo0(:,2) + srchomo1(:,1,cnt)*(ii-0.5)
-    !  &                      + srchomo1(:,2,cnt)/2
-    !         srchomo0(:,3) = srchomo0(:,3) + srchomo1(:,1,cnt)*(jj-0.5)
-    !  &                      + srchomo1(:,3,cnt)/2
-    !         srchomo0(:,4) = srchomo0(:,4) + srchomo1(:,1,cnt)*(kk-0.5)
-    !  &                      + srchomo1(:,4,cnt)/2
-    !       ENDDO
-    !     ENDDO
-    !   ENDDO
-    !   srchomo0  = srchomo0/8
 
       END SUBROUTINE XSSRCHOMO1
 
@@ -110,7 +94,9 @@
      &                 imin,imax,jmin,jmax,kmin,kmax,
      &                 sigt, zreg, aflx, w, asrc, xshom0,
      &                 srchomo0)
-   ! inputs
+
+! Compute the homogenized angular source and cross-section at lvl 0
+
         IMPLICIT NONE
    
         INTEGER, PARAMETER :: nc = 4
@@ -155,30 +141,21 @@
               auy(:) = auy(:) + flxoct(:,r)
               srchomo0(:,1) = srchomo0(:,1) + asrc(:,r,1)
               srchomo0(:,2) = srchomo0(:,2) + ( asrc(:,r,2)
-     &        + asrc(:,r,1)*(2*x-imax) )/(imax-imin+1)
+     &        + asrc(:,r,1)*(2*x-imax-imin) )/(imax-imin+1)
      
               srchomo0(:,3) = srchomo0(:,3) + ( asrc(:,r,3)
-     &        + asrc(:,r,1)*(2*y-jmax) )/(jmax-jmin+1)
+     &        + asrc(:,r,1)*(2*y-jmax-jmin) )/(jmax-jmin+1)
 
               srchomo0(:,4) = srchomo0(:,4) + ( asrc(:,r,4)
-     &        + asrc(:,r,1)*(2*z-kmax) )/(kmax-kmin+1)
+     &        + asrc(:,r,1)*(2*z-kmax-kmin) )/(kmax-kmin+1)
+
             ENDDO
           ENDDO
         ENDDO
-     
-   !   & + asrc(:,r,4)*4/(kmax-kmin)**2
-   !   & + asrc(:,r,1)*(2*z - 2*kcnt + ktot)
         
       xshom0= aux/auy
       srchomo0 = srchomo0/((imax-imin+1)*(jmax-jmin+1)*(kmax-kmin+1))  
 
-            !    srchomo0(:,2) = srchomo0(:,2) + srchomo1(:,1,cnt)*(ii-0.5)
-        ! &                      + srchomo1(:,2,cnt)/2
-        !        srchomo0(:,3) = srchomo0(:,3) + srchomo1(:,1,cnt)*(jj-0.5)
-        ! &                      + srchomo1(:,3,cnt)/2
-        !        srchomo0(:,4) = srchomo0(:,4) + srchomo1(:,1,cnt)*(kk-0.5)
-        ! &                      + srchomo1(:,4,cnt)/2
-   
       END SUBROUTINE XSSRCHOMO0
 
       SUBROUTINE MERGEBOUND0(nn,nb,
@@ -188,11 +165,11 @@
     
       IMPLICIT NONE
    
-   ! Define the projection of the angular flux on the boundary
-   ! on level 1 and level 0
-   ! finc0(nn, nb, nb): on level 0 for each group for each direction
-   ! on each 3 spatial component on each 3 incoming face
-   ! finc1(nn, nb, nb, ns) same but on level 1 and for each 4 subfaces
+! Define the projection of the angular flux on the boundary
+! on level 1 and level 0
+! finc0(nn, nb, nb): on level 0 for each group for each direction
+! on each 3 spatial component on each 3 incoming face
+! finc1(nn, nb, nb, ns) same but on level 1 and for each 4 subfaces
          
       INTEGER, INTENT(IN) :: nn,nb 
       INTEGER, INTENT(IN) :: imin, imax,jmin,jmax,kmin,kmax, nx,ny,nz
@@ -207,19 +184,31 @@
     
       DO k=kmin,kmax
         DO j=jmin, jmax
-            finc0(:,:,1) = finc0(:,:,1) + bflx(:,:,j,k)
+            finc0(:,1,1) = finc0(:,1,1) + bflx(:,1,j,k)
+            finc0(:,2,1) = finc0(:,2,1) + (bflx(:,2,j,k) 
+     &       + bflx(:,1,j,k)*(2*j-jmax-jmin))/(jmax-jmin+1)
+            finc0(:,3,1) = finc0(:,3,1) + (bflx(:,3,j,k)
+     &       + bflx(:,1,j,k)*(2*k-kmax-kmin))/(kmax-kmin+1)
         ENDDO
       ENDDO
          
       DO k=kmin,kmax
         DO i=imin, imax
-          finc0(:,:,2) = finc0(:,:,2) + bfly(:,:,i,k)
+          finc0(:,1,2) = finc0(:,1,2) + bfly(:,1,i,k)
+          finc0(:,2,2) = finc0(:,2,2) + (bfly(:,2,i,k)
+     &       + bfly(:,1,i,k)*(2*i-imax-imin))/(imax-imin+1)
+          finc0(:,3,2) = finc0(:,3,2) + (bfly(:,3,i,k)
+     &       + bfly(:,1,i,k)*(2*k-kmax-kmin))/(kmax-kmin+1)
         ENDDO
       ENDDO
          
       DO j=jmin, jmax
         DO i=imin, imax
-           finc0(:,:,3) = finc0(:,:,3) + bflz(:,:,i,j)
+           finc0(:,1,3) = finc0(:,1,3) + bflz(:,1,i,j)
+           finc0(:,2,3) = finc0(:,2,3) + (bflz(:,2,i,j)
+     &       + bflz(:,1,i,j)*(2*i-imax-imin))/(imax-imin+1)
+           finc0(:,3,3) = finc0(:,3,3) + (bflz(:,3,i,j)
+     &       + bflz(:,1,i,j)*(2*j-jmax-jmin))/(jmax-jmin+1)
         ENDDO
       ENDDO
              
@@ -273,7 +262,11 @@
         DO jj=0,1
           DO k=kcnt, kcnt+ktot
             DO j=jcnt, jcnt+jtot
-              finc1(:,:,1,cnt) = finc1(:,:,1,cnt) + bflx(:,:,j,k)
+              finc1(:,1,1,cnt) = finc1(:,1,1,cnt) + bflx(:,1,j,k)
+              finc1(:,2,1,cnt) = finc1(:,2,1,cnt) + (bflx(:,2,j,k)
+     &         + bflx(:,1,j,k)*(2*j-jtot-2*jcnt))/(jtot+1)
+              finc1(:,3,1,cnt) = finc1(:,3,1,cnt) + (bflx(:,3,j,k)
+     &         + bflx(:,1,j,k)*(2*k-ktot-2*kcnt))/(ktot+1)
             ENDDO
           ENDDO
           cnt = cnt + 1
@@ -289,7 +282,11 @@
         DO ii=0,1
           DO k=kcnt, kcnt+ktot
             DO i=icnt, icnt+itot
-              finc1(:,:,2,cnt) = finc1(:,:,2,cnt) + bfly(:,:,i,k)
+              finc1(:,1,2,cnt) = finc1(:,1,2,cnt) + bfly(:,1,i,k)
+              finc1(:,2,2,cnt) = finc1(:,2,2,cnt) + (bfly(:,2,i,k)
+     &         + bfly(:,1,i,k)*(2*i-itot-2*icnt))/(itot+1)
+              finc1(:,3,2,cnt) = finc1(:,3,2,cnt) + (bfly(:,3,i,k)
+     &         + bfly(:,1,i,k)*(2*k-ktot-2*kcnt))/(ktot+1)
             ENDDO
           ENDDO
         icnt = i_half + 1 
@@ -305,7 +302,11 @@
         DO ii=0,1
           DO j=jcnt, jcnt+jtot
             DO i=icnt, icnt+itot
-               finc1(:,:,3,cnt) = finc1(:,:,3,cnt) + bflz(:,:,i,j)
+               finc1(:,1,3,cnt) = finc1(:,1,3,cnt) + bflz(:,1,i,j)
+               finc1(:,2,3,cnt) = finc1(:,2,3,cnt) + (bflz(:,2,i,j)
+     &         + bflz(:,1,i,j)*(2*i-itot-2*icnt))/(itot+1)
+               finc1(:,3,3,cnt) = finc1(:,3,3,cnt) + (bflz(:,3,i,j)
+     &         + bflz(:,1,i,j)*(2*j-jtot-2*jcnt))/(jtot+1)
             ENDDO
           ENDDO
           icnt = i_half + 1 
@@ -313,6 +314,7 @@
         ENDDO
         jcnt = j_half + 1 
       ENDDO
+
       finc1(:,:,1,:) = finc1(:,:,1,:)/((ktot+1)*(jtot+1))
       finc1(:,:,2,:) = finc1(:,:,2,:)/((itot+1)*(ktot+1))
       finc1(:,:,3,:) = finc1(:,:,3,:)/((itot+1)*(jtot+1))
@@ -321,11 +323,14 @@
 
 !----------------------------------------------------------------------
      
-      SUBROUTINE SPLITBOUND0(nn, ng,nb,
+      SUBROUTINE SPLITBOUND0(nn,ng,nb,
      &                      imin, imax,jmin,jmax,kmin,kmax,
      &                      nx,ny,nz,
      &                      bflx, bfly, bflz, fout0)
- 
+
+
+! Split the lvl 0 boundary flux on the outgoing faces 
+
       IMPLICIT NONE
       INTEGER ,PARAMETER :: ns = 4
  
@@ -340,17 +345,30 @@
  
       DO k=kmin, kmax
         DO j=jmin, jmax
-          bflx(:,:,j,k) = fout0(:,:,1)
+          bflx(:,1,j,k) = fout0(:,1,1)
+     &            + 3.0*fout0(:,2,1)*(2*j-jmin-jmax)/(jmax-jmin+1.0)
+     &            + 3.0*fout0(:,3,1)*(2*k-kmin-kmax)/(kmax-kmin+1.0)
+          bflx(:,2,j,k) = fout0(:,2,1)/(jmax-jmin+1)
+          bflx(:,3,j,k) = fout0(:,3,1)/(kmax-kmin+1)  
         ENDDO
       ENDDO
+
       DO k=kmin, kmax
         DO i=imin, imax
-          bfly(:,:,i,k) = fout0(:,:,2)
+          bfly(:,1,i,k) = fout0(:,1,2)
+     &           + 3.0*fout0(:,2,2)*(2.0*i-imax-imin)/(imax-imin+1.0)
+     &           + 3.0*fout0(:,3,2)*(2.0*k-kmax-kmin)/(kmax-kmin+1.0)
+          bfly(:,2,i,k) = fout0(:,2,2)/(imax-imin+1)
+          bfly(:,3,i,k) = fout0(:,3,2)/(kmax-kmin+1)
         ENDDO
       ENDDO
-      DO j=kmin, kmax
+      DO j=jmin, jmax
         DO i=imin, imax
-          bflz(:,:,i,j) = fout0(:,:,3)
+          bflz(:,1,i,j) = fout0(:,1,3)
+     &           + 3.0*fout0(:,2,3)*(2*i-imax-imin)/(imax-imin+1.0)
+     &           + 3.0*fout0(:,3,3)*(2*j-jmax-jmin)/(jmax-jmin+1.0)
+          bflz(:,2,i,j) = fout0(:,2,3)/(imax-imin+1)
+          bflz(:,3,i,j) = fout0(:,3,3)/(jmax-jmin+1)
         ENDDO
       ENDDO
       
@@ -361,7 +379,9 @@
      &                      imin, imax,jmin,jmax,kmin,kmax,
      &                      nx,ny,nz,
      &                      bflx, bfly, bflz, fout1)
-   
+
+! Split the lvl 1 boundary flux on the outgoing faces 
+
          IMPLICIT NONE
          INTEGER ,PARAMETER :: ns = 4
    
@@ -390,7 +410,11 @@
            DO jj=0,1
              DO k=kcnt, kcnt+ktot
                DO j=jcnt, jcnt+jtot
-                bflx(:,:,j,k) =  fout1(:,:,1,cnt)
+                bflx(:,1,j,k) =  fout1(:,1,1,cnt)
+     &           + 3.0*fout1(:,2,1,cnt)*(2*j-2*jcnt-jtot)/(jtot+1)
+     &           + 3.0*fout1(:,3,1,cnt)*(2*k-2*kcnt-ktot)/(ktot+1)
+                bflx(:,2,j,k) =  fout1(:,2,1,cnt)/(jtot+1)
+                bflx(:,3,j,k) =  fout1(:,3,1,cnt)/(ktot+1)
                ENDDO
              ENDDO
              cnt = cnt + 1
@@ -406,7 +430,11 @@
            DO ii=0,1
              DO k=kcnt, kcnt+ktot
                DO i=icnt, icnt+itot
-                 bfly(:,:,i,k) = fout1(:,:,2,cnt)
+                 bfly(:,1,i,k) = fout1(:,1,2,cnt)
+     &           + 3.0*fout1(:,2,2,cnt)*(2*i-2*icnt-itot)/(itot+1)
+     &           + 3.0*fout1(:,3,2,cnt)*(2*k-2*kcnt-ktot)/(ktot+1)
+                 bfly(:,2,i,k) = fout1(:,2,2,cnt)/(itot+1)
+                 bfly(:,3,i,k) = fout1(:,3,2,cnt)/(ktot+1)
                ENDDO
              ENDDO
            icnt = i_half + 1
@@ -422,7 +450,11 @@
            DO ii=0,1
              DO j=jcnt, jcnt+jtot
                DO i=icnt, icnt+itot
-                  bflz(:,:,i,j) = fout1(:,:,3,cnt)
+                  bflz(:,1,i,j) = fout1(:,1,3,cnt)
+     &        + 3.0*fout1(:,2,3,cnt)*(2*i-2*icnt-itot)/(itot+1)
+     &        + 3.0*fout1(:,3,3,cnt)*(2*j-2*jcnt-jtot)/(jtot+1)
+                  bflz(:,2,i,j) = fout1(:,2,3,cnt)/(itot+1)
+                  bflz(:,3,i,j) = fout1(:,3,3,cnt)/(jtot+1)
                ENDDO
              ENDDO
              icnt = i_half + 1
@@ -436,7 +468,9 @@
       SUBROUTINE SPLITAFLX1(nn,nr,nc,nx,ny,nz,
      &                      imin,imax,jmin,jmax,kmin,kmax,
      &                      aflx,aflx1)
-   
+ 
+! Split the lvl 1 anglular flux on the global anglular flux array
+
           IMPLICIT NONE
    
           INTEGER, PARAMETER :: n8=8
@@ -466,7 +500,13 @@
                      DO y= jcnt, jcnt+jtot
                      DO x= icnt, icnt+itot
                         r = ((z-1)*ny + (y-1))*nx + x 
-                        aflx(:,r,:) = aflx1(:,:,cnt)
+                        aflx(:,r,1) = aflx1(:,1,cnt)
+     &               + 3.0*aflx1(:,2,cnt)*(2*x-2*icnt-itot)/(itot+1)
+     &               + 3.0*aflx1(:,3,cnt)*(2*y-2*jcnt-jtot)/(jtot+1)
+     &               + 3.0*aflx1(:,4,cnt)*(2*z-2*kcnt-ktot)/(ktot+1)
+                        aflx(:,r,2) = aflx1(:,2,cnt)/(itot+1)
+                        aflx(:,r,3) = aflx1(:,3,cnt)/(jtot+1)
+                        aflx(:,r,4) = aflx1(:,4,cnt)/(ktot+1)
                      ENDDO
                      ENDDO
                      ENDDO
@@ -479,3 +519,37 @@
           ENDDO  
    
          END SUBROUTINE SPLITAFLX1
+
+
+      SUBROUTINE SPLITAFLX0(nn,nr,nc,nx,ny,
+     &                      imin,imax,jmin,jmax,kmin,kmax,
+     &                      aflx,aflx0)
+ 
+! Split the lvl 0 anglular flux on the global anglular flux array
+
+        IMPLICIT NONE
+   
+        INTEGER, INTENT(IN) :: nx,ny
+        INTEGER, INTENT(IN) :: nn,nr,nc,imin,imax,jmin,jmax,kmin,kmax
+        REAL, INTENT(IN) :: aflx0(nn,nc)
+        REAL, INTENT(OUT) :: aflx(nn,nr,nc)
+   
+        INTEGER :: i,j,k,r
+
+        DO i=imin,imax
+          DO j=jmin,jmax
+            DO k=kmin,kmax
+                r = ((k-1)*ny + (j-1))*nx + i
+                aflx(:,r,1) = aflx0(:,1) 
+     &                + 3.0*aflx0(:,2)*(2*i-imax-imin)/(imax-imin+1)
+     &                + 3.0*aflx0(:,3)*(2*j-jmax-jmin)/(jmax-jmin+1)
+     &                + 3.0*aflx0(:,4)*(2*k-kmax-kmin)/(kmax-kmin+1)
+                aflx(:,r,2) = aflx0(:,2)/(imax-imin+1)
+                aflx(:,r,3) = aflx0(:,3)/(jmax-jmin+1)
+                aflx(:,r,4) = aflx0(:,4)/(kmax-kmin+1)
+
+            ENDDO
+          ENDDO
+        ENDDO
+
+        END SUBROUTINE SPLITAFLX0

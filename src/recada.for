@@ -140,12 +140,10 @@
      &                   bfly(:,:,:,yinc,oct),
      &                   bflz(:,:,:,zinc,oct),
      &                   finc0)
-
-
-
+        
         CALL SWEEP_ONEREGION(nn,2,asrcm0, finc0, aflx0, fout0,
      &                          ccof,icof,ecof,tcof)
-
+       
 
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
      &                             nx,ny, nz,
@@ -258,33 +256,19 @@
       REAL, INTENT(IN)        :: delt3(3)
       INTEGER, INTENT(INOUT)  :: i,j,k,r 
 
-      REAL :: aflxtps1(nn,nc), asrcmtps1(ng,ndir,nc), xshomtps1(ng)
-      REAL :: aflxtps2(nn,nc), asrcmtps2(ng,ndir,nc), xshomtps2(ng)
-      REAL :: aflxtps3(nn,nc), asrcmtps3(ng,ndir,nc), xshomtps3(ng)
-      REAL :: aflxtps4(nn,nc), asrcmtps4(ng,ndir,nc), xshomtps4(ng)
-      REAL :: aflxtps5(nn,nc), asrcmtps5(ng,ndir,nc), xshomtps5(ng)
-      REAL :: aflxtps6(nn,nc), asrcmtps6(ng,ndir,nc), xshomtps6(ng)
-      REAL :: aflxtps7(nn,nc), asrcmtps7(ng,ndir,nc), xshomtps7(ng)
-      REAL :: aflxtps8(nn,nc), asrcmtps8(ng,ndir,nc), xshomtps8(ng)
-
+      REAL :: aflxtps(nn,nc,n8),asrcmtps(ng,ndir,nc,n8),xshomtps(ng,n8)
+      REAL :: fouttps(nn,nb,3,n8)
       REAL :: errtot
+      REAL :: ccoftps(nn,nc,nc,n8),icoftps(nn,nc,nbd,n8)
+      REAL :: ecoftps(nn,nbd,nc,n8),tcoftps(nn,nbd,nbd,n8)
       
       fout1 = 0.0
+
 ! Error check by source-correction estimation
-
-    !   print *,xshom0
-
       CALL SRCCOR(ng,ndir,delt3/(2**niv),mu,eta,ksi,asrcm0,
      &            xshom0,errcor)
-
       errtot = SUM(ABS(errcor))
-      errtot = 1.0
 
-    !   print err
-    !   print *,errcor
-
-!     7/ query ok/ko? 
-!     Définir un critère 
       IF(imax-imin>0 .AND. jmax-jmin>0 
      & .AND. kmax-kmin>0 .AND.  errtot >0.0) THEN
         ok = .FALSE.
@@ -292,94 +276,134 @@
         ok = .TRUE.
       ENDIF
 
-    !   print *, "ok", ok
-
       IF (.NOT. ok) THEN 
-
-
+! If the criterion is not satisfied, compute on lvl 1
         CALL XSSRCHOMO1(nn,ng,nr,nx,ny, ndir,
      &                 imin, imax,jmin,jmax,kmin,kmax,
      &                 sigt, zreg, aflx, w, asrc, xshom1,
      &                 asrcm1)
-
 
         CALL MERGEBOUND1(nn, ng,nb,
      &                   imin, imax,jmin,jmax,kmin,kmax,
      &                   nx,ny,nz,
      &                   bflx, bfly, bflz, finc1)
 
-
         CALL EIGHT_COEF3D(nn,ndir,ng,mu,eta,ksi,
      &                    delt3/(2**(niv+1)),xshom1,
      &                    sgnc,sgni,sgne,sgnt,
      &                    ccof8,icof8,ecof8,tcof8)
-        
 
         CALL SWEEP_8REGIONS(nn,2,asrcm1, finc1, aflx1, fout1,
      &                     ccof8,icof8,ecof8,tcof8, xinc, yinc, zinc)
 
-    !   CALL SRC2LVL(ng, ndir, srcm1, sigt, errmul)
       ENDIF
+      
+      IF (ok) THEN
+! If the criterion is satisfied, compute on lvl 0 and 
+        IF (niv > 0) THEN
+            CALL MERGEBOUND0(nn,nb,
+     &                   imin,imax,jmin,jmax,kmin,kmax,
+     &                   nx,ny,nz,
+     &                   bflx,
+     &                   bfly,
+     &                   bflz,
+     &                   finc0)
 
-      IF (ok) THEN 
+            CALL SWEEP_ONEREGION(nn,2,asrcm0, finc0, aflx0, fout0,
+     &                          ccof,icof,ecof,tcof)
+        END IF 
+        
         ! - write the angular flux of node-0 on the fine-mesh flux 
-        DO i=imin,imax
-            DO j=jmin,jmax
-                DO k=kmin,kmax
-                    r = ((k-1)*ny + (j-1))*nx + i
-                    aflx(:,r,:) = aflx0(:,:)
-                ENDDO
-            ENDDO
-        ENDDO
+        CALL SPLITAFLX0(nn,nr,nc,nx,ny,
+     &                   imin,imax,jmin,jmax,kmin,kmax,
+     &                   aflx,aflx0)
 !      - write the outgoing angular flux of node-0 
 !            on the fine-mesh boundary flux
+
          CALL SPLITBOUND0(nn, ng,nb,
      &                   imin, imax,jmin,jmax,kmin,kmax,
      &                   nx,ny,nz,
      &                   bflx, bfly, bflz, fout0)
-        
-          !         - return 
+
           RETURN
 
       ELSE IF((imax-imin)>1) THEN
 !         15/ si ko : 
 !        - call recursively the subroutine for the 8 nodes of level-1
 
-        asrcmtps1 = asrcm1(:,:,:,xinc+2*(yinc-1) + 4*(zinc-1))  
-        aflxtps1 = aflx1(:,:, xinc+2*(yinc-1) + 4*(zinc-1))
-        xshomtps1 = xshom1(:,  xinc+2*(yinc-1) + 4*(zinc-1))
+        asrcmtps(:,:,:,1) = asrcm1(:,:,:, xinc+2*(yinc-1) + 4*(zinc-1))  
+        aflxtps(:,:,1) =   aflx1(:,:, xinc+2*(yinc-1) + 4*(zinc-1))
+        xshomtps(:,1) = xshom1(:,       xinc+2*(yinc-1) + 4*(zinc-1))
 
-        asrcmtps2 = asrcm1(:,:,:,3-xinc+2*(yinc-1) + 4*(zinc-1))  
-        aflxtps2 = aflx1(:,:, 3-xinc+2*(yinc-1) + 4*(zinc-1))
-        xshomtps2 = xshom1(:,  3-xinc+2*(yinc-1) + 4*(zinc-1))
+        asrcmtps(:,:,:,2) = asrcm1(:,:,:,3-xinc+2*(yinc-1) + 4*(zinc-1))  
+        aflxtps(:,:,2) = aflx1(:,:,  3-xinc+2*(yinc-1) + 4*(zinc-1))
+        xshomtps(:,2) = xshom1(:,      3-xinc+2*(yinc-1) + 4*(zinc-1))
 
-        asrcmtps3= asrcm1(:,:,:,xinc+2*(2-yinc) + 4*(zinc-1))  
-        aflxtps3= aflx1(:,:, xinc+2*(2-yinc) + 4*(zinc-1))
-        xshomtps3= xshom1(:,  xinc+2*(2-yinc) + 4*(zinc-1))
+        asrcmtps(:,:,:,3)= asrcm1(:,:,:,xinc+2*(2-yinc) + 4*(zinc-1))  
+        aflxtps(:,:,3)= aflx1(:,:,  xinc+2*(2-yinc) + 4*(zinc-1))
+        xshomtps(:,3)= xshom1(:,      xinc+2*(2-yinc) + 4*(zinc-1))
 
-        asrcmtps4= asrcm1(:,:,:,3-xinc + 2*(2-yinc) + 4*(zinc-1))  
-        aflxtps4= aflx1(:,:, 3-xinc + 2*(2-yinc) + 4*(zinc-1))
-        xshomtps4= xshom1(:,  3-xinc + 2*(2-yinc) + 4*(zinc-1))
+        asrcmtps(:,:,:,4)=asrcm1(:,:,:,3-xinc + 2*(2-yinc) + 4*(zinc-1))  
+        aflxtps(:,:,4)= aflx1(:,:,  3-xinc + 2*(2-yinc) + 4*(zinc-1))
+        xshomtps(:,4)= xshom1(:,      3-xinc + 2*(2-yinc) + 4*(zinc-1))
 
-        asrcmtps5= asrcm1(:,:,:,xinc + 2*(yinc-1) + 4*(2-zinc))  
-        aflxtps5= aflx1(:,:, xinc + 2*(yinc-1) + 4*(2-zinc))
-        xshomtps5= xshom1(:,  xinc + 2*(yinc-1) + 4*(2-zinc))
+        asrcmtps(:,:,:,5)= asrcm1(:,:,:,xinc + 2*(yinc-1) + 4*(2-zinc))  
+        aflxtps(:,:,5)= aflx1(:,:,  xinc + 2*(yinc-1) + 4*(2-zinc))
+        xshomtps(:,5)= xshom1(:,      xinc + 2*(yinc-1) + 4*(2-zinc))
 
-        asrcmtps6= asrcm1(:,:,:,3-xinc + 2*(yinc-1) + 4*(2-zinc))  
-        aflxtps6= aflx1(:,:, 3-xinc + 2*(yinc-1) + 4*(2-zinc))
-        xshomtps6= xshom1(:,  3-xinc + 2*(yinc-1) + 4*(2-zinc))  
+        asrcmtps(:,:,:,6)=asrcm1(:,:,:,3-xinc + 2*(yinc-1) + 4*(2-zinc))  
+        aflxtps(:,:,6)= aflx1(:,:,  3-xinc + 2*(yinc-1) + 4*(2-zinc))
+        xshomtps(:,6) = xshom1(:,     3-xinc + 2*(yinc-1) + 4*(2-zinc))  
 
-        asrcmtps7= asrcm1(:,:,:,xinc+2*(2-yinc) + 4*(2-zinc))  
-        aflxtps7= aflx1(:,:, xinc+2*(2-yinc) + 4*(2-zinc))
-        xshomtps7= xshom1(:,  xinc+2*(2-yinc) + 4*(2-zinc))
+        asrcmtps(:,:,:,7)= asrcm1(:,:,:,xinc+2*(2-yinc) + 4*(2-zinc))  
+        aflxtps(:,:,7)= aflx1(:,:,  xinc+2*(2-yinc) + 4*(2-zinc))
+        xshomtps(:,7)= xshom1(:,      xinc+2*(2-yinc) + 4*(2-zinc))
 
-        asrcmtps8= asrcm1(:,:,:,3-xinc + 2*(2-yinc) + 4*(2-zinc))  
-        aflxtps8= aflx1(:,:, 3-xinc + 2*(2-yinc) + 4*(2-zinc))
-        xshomtps8= xshom1(:,  3-xinc + 2*(2-yinc) + 4*(2-zinc))
+        asrcmtps(:,:,:,8)=asrcm1(:,:,:,3-xinc + 2*(2-yinc) + 4*(2-zinc))  
+        aflxtps(:,:,8) = aflx1(:,:, 3-xinc + 2*(2-yinc) + 4*(2-zinc))
+        xshomtps(:,8)= xshom1(:,      3-xinc + 2*(2-yinc) + 4*(2-zinc))
 
-        asrcm0 = asrcmtps1
-        aflx0  = aflxtps1
-        xshom0 = xshomtps1
+        
+      ccoftps(:,:,:,1) = ccof8(:,:,:, xinc + 2*(yinc-1) + 4*(zinc-1))
+      ecoftps(:,:,:,1) = ecof8(:,:,:, xinc + 2*(yinc-1) + 4*(zinc-1))
+      tcoftps(:,:,:,1) = tcof8(:,:,:, xinc + 2*(yinc-1) + 4*(zinc-1))
+      icoftps(:,:,:,1) = icof8(:,:,:, xinc + 2*(yinc-1) + 4*(zinc-1))
+
+      ccoftps(:,:,:,2) = ccof8(:,:,:,3-xinc+ 2*(yinc-1) + 4*(zinc-1))
+      ecoftps(:,:,:,2) = ecof8(:,:,:,3-xinc+ 2*(yinc-1) + 4*(zinc-1))
+      tcoftps(:,:,:,2) = tcof8(:,:,:,3-xinc+ 2*(yinc-1) + 4*(zinc-1))
+      icoftps(:,:,:,2) = icof8(:,:,:,3-xinc+ 2*(yinc-1) + 4*(zinc-1))
+
+      ccoftps(:,:,:,3) = ccof8(:,:,:,xinc + 2*(2-yinc) + 4*(zinc-1))
+      ecoftps(:,:,:,3) = ecof8(:,:,:,xinc + 2*(2-yinc) + 4*(zinc-1))
+      tcoftps(:,:,:,3) = tcof8(:,:,:,xinc + 2*(2-yinc) + 4*(zinc-1))
+      icoftps(:,:,:,3) = icof8(:,:,:,xinc + 2*(2-yinc) + 4*(zinc-1))
+
+      ccoftps(:,:,:,4) = ccof8(:,:,:,3-xinc + 2*(2-yinc) + 4*(zinc-1))
+      ecoftps(:,:,:,4) = ecof8(:,:,:,3-xinc + 2*(2-yinc) + 4*(zinc-1))
+      tcoftps(:,:,:,4) = tcof8(:,:,:,3-xinc + 2*(2-yinc) + 4*(zinc-1))
+      icoftps(:,:,:,4) = icof8(:,:,:,3-xinc + 2*(2-yinc) + 4*(zinc-1))
+
+      ccoftps(:,:,:,5) = ccof8(:,:,:,xinc+2*(yinc-1) + 4*(2-zinc))
+      ecoftps(:,:,:,5) = ecof8(:,:,:,xinc+2*(yinc-1) + 4*(2-zinc))
+      tcoftps(:,:,:,5) = tcof8(:,:,:,xinc+2*(yinc-1) + 4*(2-zinc))
+      icoftps(:,:,:,5) = icof8(:,:,:,xinc+2*(yinc-1) + 4*(2-zinc))
+
+      ccoftps(:,:,:,6) = ccof8(:,:,:,3-xinc+2*(yinc-1) + 4*(2-zinc))
+      ecoftps(:,:,:,6) = ecof8(:,:,:,3-xinc+2*(yinc-1) + 4*(2-zinc))
+      tcoftps(:,:,:,6) = tcof8(:,:,:,3-xinc+2*(yinc-1) + 4*(2-zinc))
+      icoftps(:,:,:,6) = icof8(:,:,:,3-xinc+2*(yinc-1) + 4*(2-zinc))
+
+      ccoftps(:,:,:,7) = ccof8(:,:,:,xinc+2*(2-yinc) + 4*(2-zinc))
+      ecoftps(:,:,:,7) = ecof8(:,:,:,xinc+2*(2-yinc) + 4*(2-zinc))
+      tcoftps(:,:,:,7) = tcof8(:,:,:,xinc+2*(2-yinc) + 4*(2-zinc))
+      icoftps(:,:,:,7) = icof8(:,:,:,xinc+2*(2-yinc) + 4*(2-zinc))
+
+      ccoftps(:,:,:,8) = ccof8(:,:,:,3-xinc+2*(2-yinc) + 4*(2-zinc))
+      ecoftps(:,:,:,8) = ecof8(:,:,:,3-xinc+2*(2-yinc) + 4*(2-zinc))
+      tcoftps(:,:,:,8) = tcof8(:,:,:,3-xinc+2*(2-yinc) + 4*(2-zinc))
+      icoftps(:,:,:,8) = icof8(:,:,:,3-xinc+2*(2-yinc) + 4*(2-zinc))
+
 
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
      &                             nx,ny, nz,
@@ -396,15 +420,15 @@
      &                             sgnc,sgni,sgne,sgnt,
      &                             zreg,asrc,aflx,
      &                             bflx, bfly, bflz,
-     &                             aflx0, aflx1,xshom0, xshom1,
-     &                             asrcm0, asrcm1,finc0,finc1,
-     &                             fout0,fout1,ccof,icof,ecof,tcof,
+     &                             aflxtps(:,:,1),aflx1,
+     &                             xshomtps(:,1),xshom1,
+     &                             asrcmtps(:,:,:,1),asrcm1,finc0,finc1,
+     &                             fout0,fout1,
+     &                             ccoftps(:,:,:,1),icoftps(:,:,:,1),
+     &                             ecoftps(:,:,:,1),tcoftps(:,:,:,1),
      &                             ccof8,icof8,ecof8,tcof8,
      &                             errcor,errmul,ok,delt3,i,j,k,r)
       
-      asrcm0 = asrcmtps2
-      aflx0  = aflxtps2
-      xshom0 = xshomtps2
 
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
      &                             nx,ny, nz,
@@ -421,15 +445,15 @@
      &                             sgnc,sgni,sgne,sgnt,
      &                             zreg,asrc,aflx,
      &                             bflx, bfly, bflz,
-     &                             aflx0, aflx1,xshom0, xshom1,
-     &                             asrcm0, asrcm1,finc0,finc1,
-     &                             fout0,fout1,ccof,icof,ecof,tcof,
+     &                             aflxtps(:,:,2),aflx1,
+     &                             xshomtps(:,2),xshom1,
+     &                             asrcmtps(:,:,:,2),asrcm1,finc0,finc1,
+     &                             fout0,fout1,
+     &                             ccoftps(:,:,:,2),icoftps(:,:,:,2),
+     &                             ecoftps(:,:,:,2),tcoftps(:,:,:,2),
      &                             ccof8,icof8,ecof8,tcof8,
      &                             errcor,errmul,ok,delt3,i,j,k,r)
 
-      asrcm0 = asrcmtps3
-      aflx0  = aflxtps3
-      xshom0 = xshomtps3
 
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
      &                             nx,ny, nz,
@@ -446,15 +470,14 @@
      &                             sgnc,sgni,sgne,sgnt,
      &                             zreg,asrc,aflx,
      &                             bflx, bfly, bflz,
-     &                             aflx0, aflx1,xshom0, xshom1,
-     &                             asrcm0, asrcm1,finc0,finc1,
-     &                             fout0,fout1,ccof,icof,ecof,tcof,
+     &                             aflxtps(:,:,3),aflx1,
+     &                             xshomtps(:,3),xshom1,
+     &                             asrcmtps(:,:,:,3),asrcm1,finc0,finc1,
+     &                             fout0,fout1,
+     &                             ccoftps(:,:,:,3),icoftps(:,:,:,3),
+     &                             ecoftps(:,:,:,3),tcoftps(:,:,:,3),
      &                             ccof8,icof8,ecof8,tcof8,
      &                             errcor,errmul,ok,delt3,i,j,k,r)
-
-      asrcm0 = asrcmtps4
-      aflx0  = aflxtps4
-      xshom0 = xshomtps4
 
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
      &                             nx,ny, nz,
@@ -471,18 +494,19 @@
      &                             sgnc,sgni,sgne,sgnt,
      &                             zreg,asrc,aflx,
      &                             bflx, bfly, bflz,
-     &                             aflx0, aflx1,xshom0, xshom1,
-     &                             asrcm0, asrcm1,finc0,finc1,
-     &                             fout0,fout1,ccof,icof,ecof,tcof,
+     &                             aflxtps(:,:,4),aflx1,
+     &                             xshomtps(:,4),xshom1,
+     &                             asrcmtps(:,:,:,4),asrcm1,finc0,finc1,
+     &                             fout0,fout1,
+     &                             ccoftps(:,:,:,4),icoftps(:,:,:,4),
+     &                             ecoftps(:,:,:,4),tcoftps(:,:,:,4),
      &                             ccof8,icof8,ecof8,tcof8,
      &                             errcor,errmul,ok,delt3,i,j,k,r)
 
 
 !-----------------------------------------------------------------------
-      asrcm0 = asrcmtps5
-      aflx0  = aflxtps5
-      xshom0 = xshomtps5
-        CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
+
+         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
      &                             nx,ny, nz,
      &                             xinc,yinc,zinc, oct,
      &   (2*imin + (xinc-1)*(imax-imin+2))/2 ,
@@ -497,17 +521,15 @@
      &                             sgnc,sgni,sgne,sgnt,
      &                             zreg,asrc,aflx,
      &                             bflx, bfly, bflz,
-     &                             aflx0, aflx1,xshom0, xshom1,
-     &                             asrcm0, asrcm1,finc0,finc1,
-     &                             fout0,fout1,ccof,icof,ecof,tcof,
+     &                             aflxtps(:,:,5),aflx1,
+     &                             xshomtps(:,5),xshom1,
+     &                             asrcmtps(:,:,:,5),asrcm1,finc0,finc1,
+     &                             fout0,fout1,
+     &                             ccoftps(:,:,:,5),icoftps(:,:,:,5),
+     &                             ecoftps(:,:,:,5),tcoftps(:,:,:,5),
      &                             ccof8,icof8,ecof8,tcof8,
      &                             errcor,errmul,ok,delt3,i,j,k,r)
 
-      asrcm0 = asrcmtps6
-      aflx0  = aflxtps6
-      xshom0 = xshomtps6
-
-
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
      &                             nx,ny, nz,
      &                             xinc,yinc,zinc, oct,
@@ -523,14 +545,15 @@
      &                             sgnc,sgni,sgne,sgnt,
      &                             zreg,asrc,aflx,
      &                             bflx, bfly, bflz,
-     &                             aflx0, aflx1,xshom0, xshom1,
-     &                             asrcm0, asrcm1,finc0,finc1,
-     &                             fout0,fout1,ccof,icof,ecof,tcof,
+     &                             aflxtps(:,:,6),aflx1,
+     &                             xshomtps(:,6),xshom1,
+     &                             asrcmtps(:,:,:,6),asrcm1,finc0,finc1,
+     &                             fout0,fout1,
+     &                             ccoftps(:,:,:,6),icoftps(:,:,:,6),
+     &                             ecoftps(:,:,:,6),tcoftps(:,:,:,6),
      &                             ccof8,icof8,ecof8,tcof8,
-     &                             errcor,errmul,ok,delt3,i,j,k,r)      
-      asrcm0 = asrcmtps7
-      aflx0  = aflxtps7
-      xshom0 = xshomtps7
+     &                             errcor,errmul,ok,delt3,i,j,k,r)  
+
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
      &                             nx,ny, nz,
      &                             xinc,yinc,zinc, oct,
@@ -546,14 +569,15 @@
      &                             sgnc,sgni,sgne,sgnt,
      &                             zreg,asrc,aflx,
      &                             bflx, bfly, bflz,
-     &                             aflx0, aflx1,xshom0, xshom1,
-     &                             asrcm0, asrcm1,finc0,finc1,
-     &                             fout0,fout1,ccof,icof,ecof,tcof,
+     &                             aflxtps(:,:,7),aflx1,
+     &                             xshomtps(:,7),xshom1,
+     &                             asrcmtps(:,:,:,7),asrcm1,finc0,finc1,
+     &                             fout0,fout1,
+     &                             ccoftps(:,:,:,7),icoftps(:,:,:,7),
+     &                             ecoftps(:,:,:,7),tcoftps(:,:,:,7),
      &                             ccof8,icof8,ecof8,tcof8,
      &                             errcor,errmul,ok,delt3,i,j,k,r)       
-      asrcm0 = asrcmtps8
-      aflx0  = aflxtps8
-      xshom0 = xshomtps8
+        
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
      &                             nx,ny, nz,
      &                             xinc,yinc,zinc, oct,
@@ -569,9 +593,12 @@
      &                             sgnc,sgni,sgne,sgnt,
      &                             zreg,asrc,aflx,
      &                             bflx, bfly, bflz,
-     &                             aflx0, aflx1,xshom0, xshom1,
-     &                             asrcm0, asrcm1,finc0,finc1,
-     &                             fout0,fout1,ccof,icof,ecof,tcof,
+     &                             aflxtps(:,:,8),aflx1,
+     &                             xshomtps(:,8),xshom1,
+     &                             asrcmtps(:,:,:,8),asrcm1,finc0,finc1,
+     &                             fout0,fout1,
+     &                             ccoftps(:,:,:,8),icoftps(:,:,:,8),
+     &                             ecoftps(:,:,:,8),tcoftps(:,:,:,8),
      &                             ccof8,icof8,ecof8,tcof8,
      &                             errcor,errmul,ok,delt3,i,j,k,r)       
 

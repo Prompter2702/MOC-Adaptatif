@@ -21,8 +21,11 @@
       INTEGER, PARAMETER :: nbfx = ny*nz,nbfy=nx*nz,nbfz=nx*ny
       INTEGER, PARAMETER :: nani=0,nhrm=1 
       INTEGER, PARAMETER :: nr = nx*ny*nz , nh = 1
-      REAL, PARAMETER :: delt = 1.0
+      REAL, PARAMETER    :: delt = 2.0
       INTEGER, PARAMETER :: nmat = 1
+      INTEGER, PARAMETER :: maxinner = 100
+      REAL, PARAMETER    :: errinner = 1.0e-4
+
 ! Nombre de milieux
 
       INTEGER, PARAMETER :: noct = 8
@@ -56,6 +59,7 @@
       zreg = 1
       sigs = 0.0
       sigt = 1.0
+      sigs(:,0,:) = 0.1
 
       bflx = 0.0
       bfly = 0.0
@@ -110,7 +114,8 @@
      &                     zreg, 
      &                     dira,dirf,
      &                     lgki,
-     &                     flxm, delt3)
+     &                     flxm, delt3,
+     &                     maxinner,errinner)
 
     !   print *,flxm(1,:,1,1)
 

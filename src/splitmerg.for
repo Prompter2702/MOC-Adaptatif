@@ -23,7 +23,7 @@
       REAL(KIND=8)    :: flxoct(ng,nr)
       INTEGER :: kk,jj,ii,cnt,icnt,jcnt,kcnt,x,y,z,r,d,
      &           i_half,j_half,k_half,itot,ktot,jtot,m
-      REAL(KIND=8) :: aux(ng,n8), auy(ng,n8)
+      REAL(KIND=8) :: aux(ng,n8), auy(ng,n8), xsmoy(ng,n8)
 
       i_half = (imin+imax)/2
       itot   = (imax-imin)/2
@@ -62,6 +62,7 @@
               m = zreg(r)
               aux(:,cnt) = aux(:,cnt) + sigt(:,m) * flxoct(:,r)
               auy(:,cnt) = auy(:,cnt) + flxoct(:,r)
+              xsmoy(:,cnt) = xsmoy(:,cnt) + sigt(:,m)
               srchomo1(:,1,cnt) = srchomo1(:,1,cnt) + asrc(:,r,1)
                 
               srchomo1(:,2,cnt) = srchomo1(:,2,cnt) + (asrc(:,r,2)
@@ -84,6 +85,13 @@
       ENDDO
      
       xshom1(:,:) = aux(:,:)/auy(:,:)
+      DO m=1,ng
+        DO kk=1,n8
+          IF (auy(m,kk) == 0.0D0) THEN
+            xshom1(m,kk) = xsmoy(m,kk)/(itot+1)*(jtot+1)*(ktot+1)
+          ENDIF
+        ENDDO
+      ENDDO
       srchomo1 = srchomo1/((itot+1)*(jtot+1)*(ktot+1))  
 
       END SUBROUTINE XSSRCHOMO1
@@ -114,7 +122,7 @@
         ! locals 
         REAL(KIND=8)    :: flxoct(ng,nr)
         INTEGER :: x,y,z,r,d,m
-        REAL(KIND=8) :: aux(ng), auy(ng)
+        REAL(KIND=8) :: aux(ng), auy(ng), xsmoy(ng)
    
         flxoct = 0.0
         DO z=kmin,kmax
@@ -131,6 +139,7 @@
         aux = 0.0D0
         auy = 0.0D0
         srchomo0 = 0.0D0
+        xsmoy = 0.0D0
    
         DO z=kmin,kmax
           DO y= jmin,jmax
@@ -138,6 +147,7 @@
               r = ((z-1)*ny + (y-1))*nx + x 
               m = zreg(r)
               aux(:) = aux(:) + sigt(:,m) * flxoct(:,r)
+              xsmoy(:) = xsmoy(:) + sigt(:,m)
               auy(:) = auy(:) + flxoct(:,r)
               srchomo0(:,1) = srchomo0(:,1) + asrc(:,r,1)
               srchomo0(:,2) = srchomo0(:,2) + ( asrc(:,r,2)
@@ -152,8 +162,14 @@
             ENDDO
           ENDDO
         ENDDO
-        
+
       xshom0= aux/auy
+      DO m=1,ng
+        IF (auy(m) == 0.0D0) THEN
+          xshom0(m) = xsmoy(m)/(kmax-kmin+1)*(jmax-jmin+1)*(imax-imin+1)
+        ENDIF
+      ENDDO
+
       srchomo0 = srchomo0/((imax-imin+1)*(jmax-jmin+1)*(kmax-kmin+1))  
 
       END SUBROUTINE XSSRCHOMO0

@@ -34,7 +34,9 @@
        ! output: flux moments 
      &                          flxm,
        ! Delta on each direction of the region
-     &                          delt3)
+     &                          delt3,
+      ! max inner iterations and tolerance for inner iterations
+     &                          maxinner, tolinner)
 
       USE FLGOCT
       USE FLGBCD
@@ -83,13 +85,25 @@
       REAL     :: ecof8(nn,nbd,nc,n8),tcof8(nn,nbd,nbd,n8)
       LOGICAL  :: ok 
       INTEGER  :: ii,jj,kk,rr 
+      INTEGER , INTENT(IN) :: maxinner
+      REAL, INTENT(IN) :: tolinner
+      REAL :: errinner
+      INTEGER :: cnt,g,r
 
-     
 
+      errinner = tolinner + 1.0
+      flxp = 0.0
+
+      DO WHILE (errinner>tolinner .AND. cnt<maxinner)
+    
+      cnt = cnt + 1
+
+      flxm = 0.0
       CALL GMOM3D(ng,nani,nh,nc,nr,sigs,flxp,srcm,zreg,sigg,tmom)
 
 !     Loop over octants of angular space in order defined by
 !     octant list "olst3D".
+
 
       DO oc=1,8
          oct=olst3D(oc)
@@ -145,6 +159,8 @@
      &                          ccof,icof,ecof,tcof)
        
 
+      ! RECURIVE SWEEP
+
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
      &                             nx,ny, nz,
      &                             xinc(oct), yinc(oct), zinc(oct),oct,
@@ -161,12 +177,10 @@
      &                             aflx0, aflx1,xshom0, xshom1,
      &                             asrcm0, asrcm1,finc0,finc1,
      &                             fout0,fout1,ccof,icof,ecof,tcof,
-     &                             ccof8,icof8,ecof8,tcof8,
+     &                             ccof8,icof8,ecof8,tcof8,tolinner,
      &                             errcor,errmul,ok,delt3,ii,jj,kk,rr)  
 
-         ! CALL SWEEP
-!        Angular moments.
-     
+! Compute the flux moments
          DO c=1,nc
          DO h=1,nh
          fst = 0
@@ -179,15 +193,11 @@
          ENDDO
          
       ENDDO
-     
-
 !     Boundary conditions: specular reflection, albedo
     
       DO oc=1,8
          oct=olst3D(oc)
-
 !        Index of outgoing side.
-
          xout=3-xinc(oct)
          yout=3-yinc(oct)
          zout=3-zinc(oct)
@@ -197,6 +207,34 @@
      &               ksi,w,pisn,rdir)
      
       ENDDO 
+
+! Compute the inner error
+      errinner = 0.0
+      DO c=1,nc
+      DO h=1,nh
+      fst = 0
+      DO d = 1,ndir
+      DO r = 1,nr
+      DO g = 1,ng
+        errinner = errinner + (flxm(g,r,h,c)-flxp(g,r,h,c))**2
+        flxp(g,r,h,c) = flxm(g,r,h,c)
+      ENDDO
+      ENDDO
+      ENDDO
+      ENDDO
+      ENDDO
+      
+      print *, errinner
+      errinner = sqrt(errinner/(nn*nr*nh*nc))
+      
+      print *,"Error inner", errinner
+      print *, "FIN ITER"
+
+! End inner iterations
+      ENDDO
+
+      print *,"Number iteration", cnt
+      print *,"Error inner", errinner
       
       END
 
@@ -215,7 +253,7 @@
      &                             aflx0, aflx1, xshom0, xshom1,
      &                             asrcm0, asrcm1,finc0,finc1,
      &                             fout0,fout1,ccof,icof,ecof,tcof,
-     &                             ccof8,icof8,ecof8,tcof8,
+     &                             ccof8,icof8,ecof8,tcof8,tol,
      &                             errcor,errmul,ok,delt3,i,j,k,r)
      
       USE SWEEP8ONE
@@ -236,6 +274,7 @@
       INTEGER, INTENT(IN) :: sgnc(nc,nc),sgni(nc,nbd)
       INTEGER, INTENT(IN) :: sgne(nbd,nc),sgnt(nbd,nbd)
       INTEGER, INTENT(IN) :: zreg(nr)
+      REAL, INTENT(IN) :: tol
       REAL, INTENT(INOUT) :: asrc(nn,nr,nc)
       REAL, INTENT(INOUT) :: aflx(nn,nr,nc)
       REAL, INTENT(INOUT) :: bflx(nn,nb,ny*nz),bfly(nn,nb,nx*nz),
@@ -270,7 +309,7 @@
       errtot = SUM(ABS(errcor))
 
       IF(imax-imin>0 .AND. jmax-jmin>0 
-     & .AND. kmax-kmin>0 .AND.  errtot >0.0) THEN
+     & .AND. kmax-kmin>0 .AND.  errtot >tol) THEN
         ok = .FALSE.
       ELSE
         ok = .TRUE.
@@ -426,7 +465,7 @@
      &                             fout0,fout1,
      &                             ccoftps(:,:,:,1),icoftps(:,:,:,1),
      &                             ecoftps(:,:,:,1),tcoftps(:,:,:,1),
-     &                             ccof8,icof8,ecof8,tcof8,
+     &                             ccof8,icof8,ecof8,tcof8,tol,
      &                             errcor,errmul,ok,delt3,i,j,k,r)
       
 
@@ -451,7 +490,7 @@
      &                             fout0,fout1,
      &                             ccoftps(:,:,:,2),icoftps(:,:,:,2),
      &                             ecoftps(:,:,:,2),tcoftps(:,:,:,2),
-     &                             ccof8,icof8,ecof8,tcof8,
+     &                             ccof8,icof8,ecof8,tcof8,tol,
      &                             errcor,errmul,ok,delt3,i,j,k,r)
 
 
@@ -476,7 +515,7 @@
      &                             fout0,fout1,
      &                             ccoftps(:,:,:,3),icoftps(:,:,:,3),
      &                             ecoftps(:,:,:,3),tcoftps(:,:,:,3),
-     &                             ccof8,icof8,ecof8,tcof8,
+     &                             ccof8,icof8,ecof8,tcof8,tol,
      &                             errcor,errmul,ok,delt3,i,j,k,r)
 
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
@@ -500,7 +539,7 @@
      &                             fout0,fout1,
      &                             ccoftps(:,:,:,4),icoftps(:,:,:,4),
      &                             ecoftps(:,:,:,4),tcoftps(:,:,:,4),
-     &                             ccof8,icof8,ecof8,tcof8,
+     &                             ccof8,icof8,ecof8,tcof8,tol,
      &                             errcor,errmul,ok,delt3,i,j,k,r)
 
 
@@ -527,7 +566,7 @@
      &                             fout0,fout1,
      &                             ccoftps(:,:,:,5),icoftps(:,:,:,5),
      &                             ecoftps(:,:,:,5),tcoftps(:,:,:,5),
-     &                             ccof8,icof8,ecof8,tcof8,
+     &                             ccof8,icof8,ecof8,tcof8,tol,
      &                             errcor,errmul,ok,delt3,i,j,k,r)
 
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
@@ -551,7 +590,7 @@
      &                             fout0,fout1,
      &                             ccoftps(:,:,:,6),icoftps(:,:,:,6),
      &                             ecoftps(:,:,:,6),tcoftps(:,:,:,6),
-     &                             ccof8,icof8,ecof8,tcof8,
+     &                             ccof8,icof8,ecof8,tcof8,tol,
      &                             errcor,errmul,ok,delt3,i,j,k,r)  
 
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
@@ -575,7 +614,7 @@
      &                             fout0,fout1,
      &                             ccoftps(:,:,:,7),icoftps(:,:,:,7),
      &                             ecoftps(:,:,:,7),tcoftps(:,:,:,7),
-     &                             ccof8,icof8,ecof8,tcof8,
+     &                             ccof8,icof8,ecof8,tcof8,tol,
      &                             errcor,errmul,ok,delt3,i,j,k,r)       
         
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
@@ -599,7 +638,7 @@
      &                             fout0,fout1,
      &                             ccoftps(:,:,:,8),icoftps(:,:,:,8),
      &                             ecoftps(:,:,:,8),tcoftps(:,:,:,8),
-     &                             ccof8,icof8,ecof8,tcof8,
+     &                             ccof8,icof8,ecof8,tcof8,tol,
      &                             errcor,errmul,ok,delt3,i,j,k,r)       
 
     !- write the outgoing angular flux of node-0 on the fine-mesh

@@ -97,19 +97,16 @@
       cnt = 0
       flxp = flxm
 
-      DO oct=1,8
-        bflx(:,:,:,3-xinc(oct),oct) = bflx(:,:,:,xinc(oct),oct)
-        bfly(:,:,:,3-yinc(oct),oct) = bfly(:,:,:,yinc(oct),oct)
-        bflz(:,:,:,3-zinc(oct),oct) = bflz(:,:,:,zinc(oct),oct)
-      ENDDO
-
       DO WHILE (errinner>tolinner .AND. cnt<maxinner)
     
       cnt = cnt + 1
 
       flxm = 0.0
+
+
       CALL GMOM3D(ng,nani,nh,nc,nr,sigs,flxp,srcm,zreg,sigg,tmom)
 
+      
 !     Loop over octants of angular space in order defined by
 !     octant list "olst3D".
 
@@ -120,6 +117,11 @@
          xout=3-xinc(oct)
          yout=3-yinc(oct)
          zout=3-zinc(oct)
+
+         bflx(:,:,:,xout,oct) = bflx(:,:,:,xinc(oct),oct)
+         bfly(:,:,:,yout,oct) = bfly(:,:,:,yinc(oct),oct)
+         bflz(:,:,:,zout,oct) = bflz(:,:,:,zinc(oct),oct)
+
          
 !        Sweep for all directions in octant "oct".
 !        initial direction of the octant 
@@ -145,6 +147,7 @@
      &                 asrcm0)
 
 
+
         CALL ONE_COEF3D(nn,ndir,ng,mu,eta,ksi,
      &                delt3,xshom0,
      &                sgnc(:,:,oct),sgni(:,:,oct),
@@ -158,11 +161,9 @@
      &                   bfly(:,:,:,yinc(oct),oct),
      &                   bflz(:,:,:,zinc(oct),oct),
      &                   finc0)
+
         
-        if(oct==7) then
-         print*,"finc", finc0
-        endif
-       
+
         CALL SWEEP_ONEREGION(nn,2,asrcm0, finc0, aflx0, fout0,
      &                          ccof,icof,ecof,tcof)
 
@@ -212,9 +213,9 @@
          yout=3-yinc(oct)
          zout=3-zinc(oct)
          
-         CALL BCD2R3(oct,xout,yout,zout,
-     &               bflx,bfly,bflz,mu,eta,
-     &               ksi,w,pisn,rdir)
+    !      CALL BCD2R3(oct,xout,yout,zout,
+    !  &               bflx,bfly,bflz,mu,eta,
+    !  &               ksi,w,pisn,rdir)
      
       ENDDO 
 

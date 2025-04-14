@@ -38,13 +38,13 @@
       REAL, INTENT(INOUT)  :: srcm(ng,nr,nh,nc,ncelx,ncely,ncelz)
     !   REAL, INTENT(INOUT)  :: tmom(ng,nr,nh,nc)
       
-      REAL    :: flxm(ng,nr,nh,nc,ncelx,ncely,ncelz)
-    !   REAL    :: aflx(nn,nr,nc,noct)
-      INTEGER :: zreg(nr,ncelx,ncely,ncelz)
-      REAL    :: asrc(nn,nr,nc,noct)
+      REAL, INTENT(INOUT)   :: flxm(ng,nr,nh,nc,ncelx,ncely,ncelz)
+      INTEGER, INTENT(IN) :: zreg(nr,ncelx,ncely,ncelz)
+      REAL, INTENT(INOUT)    :: sigg(ng,nr)
+      
+      !   REAL    :: aflx(nn,nr,nc,noct)
       REAL    :: dsrc(nn,nr,nc,*)
-      REAL    :: sigg(ng,nr)
-
+      REAL    :: asrc(nn,nr,nc,noct)
       INTEGER :: rdir(nd,*),dira(*),dirf(*)
       LOGICAL :: lgki      
 
@@ -54,13 +54,15 @@
       REAL :: errinner
       INTEGER :: cntinner, oc,oct,x,y,z, xout,yout,zout
 
+      
       CALL COFSGN(sgnc,sgni,sgne,sgnt,nc,nbd,ndim,2)
       
       errinner = tolinner+1.0
       cntinner = 0
 
 
-      DO WHILE(errinner>tolinner .AND. cntinner<5)
+
+      DO WHILE(errinner>tolinner .AND. cntinner<20)
         ! errinner = 0.0
         cntinner = cntinner + 1
 
@@ -68,7 +70,7 @@
         DO y=1,ncely
         DO x=1,ncelx
 
-            print *,"bflx", bflx(:,:,:,2,7,x,y,z)
+            ! print *,"bflx", bflx(:,:,:,2,7,x,y,z)
 
           CALL SWEE3D_ADAPTIVE(nn,ng,nr,nh,nc,nmat,
      &                     nb,nbd,ny*nz,nx*nz,nx*ny,
@@ -112,15 +114,15 @@
      &                          bflx(:,:,:,xout,oc,x+xinc(oc)-1,:,:) 
         ENDDO
 
-    !     DO y=1,ncely-1
-    !       bfly(:,y+2-yinc(oc),:,:,:,:,yinc(oc),oc) = 
-    !  &                          bfly(:,y+yinc(oc)-1,:,:,:,:,yout,oc)
-    !     ENDDO
+        DO y=1,ncely-1
+          bfly(:,:,:,yinc(oc),oc,:,y+2-yinc(oc),:) = 
+     &                          bfly(:,:,:,yout,oc,:,y+yinc(oc)-1,:)
+        ENDDO
 
-    !     DO z=1,ncelz-1
-    !       bflz(:,:,z+2-zinc(oc),:,:,:,yinc(oc),oc) =
-    !  &                          bflz(:,:,z+zinc(oc)-1,:,:,:,zout,oc)
-    !     ENDDO
+        DO z=1,ncelz-1
+          bflz(:,:,:,zinc(oc),oc,:,:,z+2-zinc(oc)) =
+     &                          bflz(:,:,:,zout,oc,:,:,z+zinc(oc)-1)
+        ENDDO
 
       ENDDO 
 

@@ -7,7 +7,7 @@
       REAL, INTENT(IN) :: flx(nx,ny,nz)
       REAL, INTENT(IN) :: ox,oy,oz
       REAL, INTENT(IN) :: delta3(3)
-      CHARACTER(LEN=10), INTENT(IN) :: name
+      CHARACTER(LEN=*), INTENT(IN) :: name
 
       INTEGER :: i, j, k, a, b,c
 

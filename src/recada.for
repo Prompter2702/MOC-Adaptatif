@@ -7,7 +7,8 @@
        ! inputs: cross section  
      &                          sigt,sigs,
        ! inputs: source and flux moments at previous iteration 
-     &                          flxp,srcm,
+    !  &                          flxp,srcm,
+     &                          srcm,
        ! input/output: boundary flux 
      &                          bflx,bfly,bflz,
        ! input: angular quadrature & spherical harmonics
@@ -16,11 +17,9 @@
      &                          sgnc,sgni,sgne,sgnt,
        ! input: auxiliar memory for boundary angular fluxes, angular 
        ! source moments and self-scattering xs 
-     &                          finc,fout,tmom,sigg,
+     &                          sigg, !tmom,
        ! input: auxiliar memory angular flux & source 
-     &                          aflx,asrc,dsrc,
-       ! input: auxiliar memory for the interface angular flux 
-     &                          xaux,yaux,zaux,
+     &                          dsrc,  ! aflx,
        ! input: auxiliar memory to drive angular mirror-reflection 
        ! or rotation/translation b.c.
      &                          rdir,
@@ -47,24 +46,27 @@
 
       INTEGER, PARAMETER :: noct = 8, n8=8, ns=4
       
-      INTEGER :: nn,ng,nr,nh,nc,nx,ny,nz,nmat
-      INTEGER :: nb,nbd,nbfx,nbfy,nbfz
-      INTEGER :: nani,nhrm,nd,ndir
-      REAL    :: flxm(ng,nr,nh,nc)
-      REAL    :: bflx(nn,nb,nbfx,2,noct),bfly(nn,nb,nbfy,2,noct),
-     &           bflz(nn,nb,nbfz,2,noct)
-      REAL    :: sigt(ng,nmat),sigs(ng,0:nani,nmat)
-      REAL(KIND=8) :: mu(ndir),eta(ndir),ksi(ndir),w(ndir),pisn
-      REAL    :: sphr(nhrm,nd)
-      INTEGER :: sgnc(nc,nc,noct),sgni(nc,nbd,noct)
-      INTEGER :: sgne(nbd,nc,noct),sgnt(nbd,nbd,noct)
-      INTEGER :: zreg(nr)
+      INTEGER, INTENT(IN) :: nn,ng,nr,nh,nc,nx,ny,nz,nmat
+      INTEGER, INTENT(IN) :: nb,nbd,nbfx,nbfy,nbfz
+      INTEGER, INTENT(IN) :: nani,nhrm,nd,ndir
+      REAL, INTENT(INOUT) :: flxm(ng,nr,nh,nc)
+      REAL, INTENT(INOUT) :: bflx(nn,nb,nbfx,2,noct),
+     &                       bfly(nn,nb,nbfy,2,noct),
+     &                       bflz(nn,nb,nbfz,2,noct)
+      REAL, INTENT(IN)    :: sigt(ng,nmat),sigs(ng,0:nani,nmat)
+      REAL(KIND=8), INTENT(IN) :: mu(ndir),eta(ndir),ksi(ndir),
+     &                            w(ndir),pisn
+      REAL, INTENT(IN)    :: sphr(nhrm,nd)
+      INTEGER,INTENT(IN) :: sgnc(nc,nc,noct),sgni(nc,nbd,noct)
+      INTEGER,INTENT(IN) :: sgne(nbd,nc,noct),sgnt(nbd,nbd,noct)
+      INTEGER, INTENT(IN) :: zreg(nr)
+      REAL, INTENT(INOUT)    :: srcm(ng,nr,nh,nc)
+      
       REAL    :: aflx(nn,nr,nc,noct),asrc(nn,nr,nc,noct)
+      REAL    :: flxp(ng,nr,nh,nc)
       REAL    :: dsrc(nn,nr,nc,*)
-      REAL    :: finc(nn,nbd),fout(nn,nbd)
-      REAL    :: flxp(ng,nr,nh,nc),srcm(ng,nr,nh,nc),tmom(ng,nr,nh,nc)
+      REAL    :: tmom(ng,nr,nh,nc)
       REAL    :: sigg(ng,nr)
-      REAL    :: xaux(nn,nb),yaux(nn,nx,nb),zaux(nn,nx,ny,nb)
       INTEGER :: rdir(nd,*),dira(*),dirf(*)
       LOGICAL :: lgki
       REAL, INTENT(IN)     :: delt3(3)
@@ -90,9 +92,16 @@
       REAL :: errinner
       INTEGER :: cnt,g,r
 
-
+      aflx = 0.0
       errinner = tolinner + 1.0
-      flxp = 0.0
+      cnt = 0
+      flxp = flxm
+
+      DO oct=1,8
+        bflx(:,:,:,3-xinc(oct),oct) = bflx(:,:,:,xinc(oct),oct)
+        bfly(:,:,:,3-yinc(oct),oct) = bfly(:,:,:,yinc(oct),oct)
+        bflz(:,:,:,3-zinc(oct),oct) = bflz(:,:,:,zinc(oct),oct)
+      ENDDO
 
       DO WHILE (errinner>tolinner .AND. cnt<maxinner)
     
@@ -125,12 +134,8 @@
 
 !        Sweep.
         ! The boundary entries are computed on the exiting part
-        ! in order to work only on the exiting part of the bdfl
+        ! in order to work only on the exiting part of the bfl
         
-        bflx(:,:,:,xout,oct) = bflx(:,:,:,xinc(oct),oct)
-        bfly(:,:,:,yout,oct) = bfly(:,:,:,yinc(oct),oct)
-        bflz(:,:,:,zout,oct) = bflz(:,:,:,zinc(oct),oct)
-
 
 !     Niveau 0 doit être déjà fait :
         CALL XSSRCHOMO0(nn,ng,nr,nx,ny, ndir,
@@ -146,21 +151,24 @@
      &                sgne(:,:,oct),sgnt(:,:,oct),
      &                ccof,icof,ecof,tcof)
       
-
         CALL MERGEBOUND0(nn,nb,
      &                   1,nx,1,ny,1,nz,
      &                   nx,ny,nz,
-     &                   bflx(:,:,:,xinc,oct),
-     &                   bfly(:,:,:,yinc,oct),
-     &                   bflz(:,:,:,zinc,oct),
+     &                   bflx(:,:,:,xinc(oct),oct),
+     &                   bfly(:,:,:,yinc(oct),oct),
+     &                   bflz(:,:,:,zinc(oct),oct),
      &                   finc0)
         
+        if(oct==7) then
+         print*,"finc", finc0
+        endif
+       
         CALL SWEEP_ONEREGION(nn,2,asrcm0, finc0, aflx0, fout0,
      &                          ccof,icof,ecof,tcof)
-       
+
 
       ! RECURIVE SWEEP
-
+     
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
      &                             nx,ny, nz,
      &                             xinc(oct), yinc(oct), zinc(oct),oct,
@@ -178,7 +186,8 @@
      &                             asrcm0, asrcm1,finc0,finc1,
      &                             fout0,fout1,ccof,icof,ecof,tcof,
      &                             ccof8,icof8,ecof8,tcof8,tolinner,
-     &                             errcor,errmul,ok,delt3,ii,jj,kk,rr)  
+     &                             errcor,errmul,ok,delt3,ii,jj,kk,rr)
+     
 
 ! Compute the flux moments
          DO c=1,nc
@@ -191,10 +200,11 @@
          ENDDO
          ENDDO
          ENDDO
+
          
       ENDDO
 !     Boundary conditions: specular reflection, albedo
-    
+
       DO oc=1,8
          oct=olst3D(oc)
 !        Index of outgoing side.
@@ -224,12 +234,8 @@
       ENDDO
       ENDDO
       
-      print *, errinner
       errinner = sqrt(errinner/(nn*nr*nh*nc))
       
-      print *,"Error inner", errinner
-      print *, "FIN ITER"
-
 ! End inner iterations
       ENDDO
 
@@ -331,6 +337,7 @@
      &                    delt3/(2**(niv+1)),xshom1,
      &                    sgnc,sgni,sgne,sgnt,
      &                    ccof8,icof8,ecof8,tcof8)
+
 
         CALL SWEEP_8REGIONS(nn,2,asrcm1, finc1, aflx1, fout1,
      &                     ccof8,icof8,ecof8,tcof8, xinc, yinc, zinc)

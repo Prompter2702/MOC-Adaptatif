@@ -322,6 +322,8 @@
 !    
       CASE (2) ! Linear flux scheme.
 !        Prepare sweep in first z-plane, incoming flux.
+        ! fout = finc
+
          s=0
          DO y=1,2
          DO x=1,2

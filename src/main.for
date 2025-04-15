@@ -15,10 +15,10 @@
       INTEGER, PARAMETER :: nn = ndir*ng
       INTEGER, PARAMETER :: nc=4, nb=3, nd = ndir*8
       INTEGER, PARAMETER :: nbd = nb*ndim
-      INTEGER, PARAMETER :: nx = 2
-      INTEGER, PARAMETER :: ny = 2
-      INTEGER, PARAMETER :: nz = 2
-      INTEGER, PARAMETER :: ncelx = 2, ncely = 2, ncelz = 2
+      INTEGER, PARAMETER :: nx = 16
+      INTEGER, PARAMETER :: ny = 16
+      INTEGER, PARAMETER :: nz = 16
+      INTEGER, PARAMETER :: ncelx = 1, ncely = 1, ncelz = 1
       INTEGER, PARAMETER :: nbfx = ny*nz,nbfy=nx*nz,nbfz=nx*ny
       INTEGER, PARAMETER :: nani=0,nhrm=1 
       INTEGER, PARAMETER :: nr = nx*ny*nz , nh = 1
@@ -52,7 +52,7 @@
       REAL    :: delt3(3)
 
       INTEGER :: count_start, count_end, count_rate
-      INTEGER :: x,y,z,r,oct
+      INTEGER :: x,y,z,r,oct, cnt
       CHARACTER(LEN=20) :: name
 
 
@@ -63,7 +63,7 @@
       zreg = 1
       sigs = 0.0
       sigt = 1.0
-      sigs(:,0,:) = 0.2
+      sigs(:,0,:) = 0.4
       sigg = 0.0
 
       bflx = 0.0
@@ -89,15 +89,30 @@
     !     ENDDO
     !   ENDDO
 
-      DO z=1,nz
-      DO y=1,ny
-      DO x=1,nx
+      cnt = 0
+      DO z=1,nz/4
+      DO y=1,ny/4
+      DO x=1,nx/4
             r= x + (y-1)*nx + (z-1)*nx*ny
             srcm(:,r,1,1, 1,1,1) = 12.0
+            cnt = cnt + 1
           ENDDO
         ENDDO
       ENDDO
 
+      print *, "cnt", cnt
+
+        cnt = 0
+        DO z=3*nz/4+1, nz
+        DO y=1,ny/4
+        DO x=3*nx/4+1, nx
+              r= x + (y-1)*nx + (z-1)*nx*ny
+              srcm(:,r,1,1, 1,1,1) = 12.0
+              cnt = cnt +1
+            ENDDO
+          ENDDO
+       ENDDO
+       print *, "cnt", cnt
     !   print *,"av flux", aflx(:,:,1,1)
       
     !   CALL COFSGN(sgnc,sgni,sgne,sgnt,nc,nbd,ndim,2)
@@ -126,11 +141,11 @@
      &                 " secondes"
 
 
-      DO x=1,ndir
-        print *,"bflx", SUM(bflx(x,1,:,2,1, 1,1,1), dim=1)/(ny*nz)
-        print *,"bfly", SUM(bfly(x,1,:,2,1, 1,1,1), dim=1)/(nx*nz)
-        print *,"bflz", SUM(bflz(x,1,:,2,1, 1,1,1), dim=1)/(nx*ny)
-      ENDDO
+    !   DO x=1,ndir
+    !     print *,"bflx", SUM(bflx(x,1,:,2,1, 1,1,1), dim=1)/(ny*nz)
+    !     print *,"bfly", SUM(bfly(x,1,:,2,1, 1,1,1), dim=1)/(nx*nz)
+    !     print *,"bflz", SUM(bflz(x,1,:,2,1, 1,1,1), dim=1)/(nx*ny)
+    !   ENDDO
 
 
     !   print *,"bflx", bflx(1,1,:,2,1, 1,1,1)
@@ -171,7 +186,7 @@
      &              (/delt, delt, delt/),
      &              flxm(1,:,1,1,x,y,z),name)
 
-        print*, flxm(1,:,1,1,x,y,z)
+        ! print*, flxm(1,:,1,1,x,y,z)
 
       ENDDO
       ENDDO

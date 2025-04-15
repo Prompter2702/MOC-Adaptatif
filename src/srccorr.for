@@ -81,19 +81,52 @@
       END SUBROUTINE GAUSS_LU4
 
 
-    !   SUBROUTINE SRC2LVL(ng, ndir, srcm1, sigt, err)
+      SUBROUTINE SRC2LVL(ng, ndir, srcm1, sigt, delt3, err)
         
-    !   IMPLICIT NONE
+      IMPLICIT NONE
 
-    !   INTEGER, PARAMETER :: n8 = 8, nc = 4
+      INTEGER, PARAMETER :: n8 = 8, nc = 4
 
-    !   INTEGER, INTENT(IN) :: ng, ndir
-    !   REAL, INTENT(IN) :: srcm1(ng,ndir,nc,n8), sigt(ng,n8)
-    !   REAL(KIND=8), INTENT(INOUT) :: err(ng)
+      INTEGER, INTENT(IN) :: ng, ndir
+      REAL, INTENT(IN) :: srcm1(ng,ndir,nc,n8), sigt(ng,n8), delt3(3)
+      REAL(KIND=8), INTENT(INOUT) :: err(ng,ndir)
+      INTEGER :: dir
+
+      err = 0.0
+
+      DO dir=1,ndir 
+
+      err(:,dir) = 
+     &  (ABS( srcm1(:,dir,1,1) - srcm1(:,dir,1,2)) )*delt3(1)*0.5*
+     &                                    ( sigt(:,1) + sigt(:,2))
+     & +(ABS( srcm1(:,dir,1,3) - srcm1(:,dir,1,4)) )*delt3(1)*
+     &                                    ( sigt(:,3) + sigt(:,4))
+     & +(ABS( srcm1(:,dir,1,5) - srcm1(:,dir,1,6)) )*delt3(1)*0.5*
+     &                                    ( sigt(:,5) + sigt(:,6))
+     & +(ABS( srcm1(:,dir,1,7) - srcm1(:,dir,1,8)) )*delt3(1)*0.5*
+     &                                    ( sigt(:,7) + sigt(:,8))
+     & +(ABS( srcm1(:,dir,1,1) - srcm1(:,dir,1,3)) )*delt3(2)*0.5*
+     &                                    ( sigt(:,1) + sigt(:,3))
+     & +(ABS( srcm1(:,dir,1,2) - srcm1(:,dir,1,4)) )*delt3(2)*0.5*
+     &                                    ( sigt(:,2) + sigt(:,4))
+     & +(ABS( srcm1(:,dir,1,5) - srcm1(:,dir,1,7)) )*delt3(2)*0.5*
+     &                                    ( sigt(:,5) + sigt(:,7))
+     & +(ABS( srcm1(:,dir,1,6) - srcm1(:,dir,1,8)) )*delt3(2)*0.5*
+     &                                    ( sigt(:,6) + sigt(:,8))
+     & +(ABS( srcm1(:,dir,1,1) - srcm1(:,dir,1,5)) )*delt3(3)*0.5*
+     &                                    ( sigt(:,1) + sigt(:,5))
+     & +(ABS( srcm1(:,dir,1,2) - srcm1(:,dir,1,6)) )*delt3(3)*0.5*
+     &                                    ( sigt(:,2) + sigt(:,6))
+     & +(ABS( srcm1(:,dir,1,3) - srcm1(:,dir,1,7)) )*delt3(3)*0.5*
+     &                                    ( sigt(:,3) + sigt(:,7))
+     & +(ABS( srcm1(:,dir,1,4) - srcm1(:,dir,1,8)) )*delt3(3)*0.5*
+     &                                    ( sigt(:,4) + sigt(:,8) )
+
+      END DO
+
+      err(:,:)= err(:,:)/(12.0*90.0)
 
 
-    !   err = 0.0
-
-    !   END SUBROUTINE SRC2LVL
+      END SUBROUTINE SRC2LVL
 
       END MODULE SRCCORR

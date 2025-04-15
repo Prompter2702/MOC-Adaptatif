@@ -62,7 +62,7 @@
 
 
 
-      DO WHILE(errinner>tolinner .AND. cntinner<20)
+      DO WHILE(errinner>tolinner .AND. cntinner<1)
         ! errinner = 0.0
         cntinner = cntinner + 1
 
@@ -130,7 +130,7 @@
       !Iterations
       ENDDO
 
-      print *,"cntinner",cntinner
+    !   print *,"cntinner",cntinner
 
 
 

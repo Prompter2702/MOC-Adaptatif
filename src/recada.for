@@ -89,7 +89,7 @@
       INTEGER  :: ii,jj,kk,rr 
       INTEGER , INTENT(IN) :: maxinner
       REAL, INTENT(IN) :: tolinner
-      REAL :: errinner
+      REAL :: errinner, normflxm
       INTEGER :: cnt,g,r
 
       aflx = 0.0
@@ -221,6 +221,7 @@
 
 ! Compute the inner error
       errinner = 0.0
+      normflxm = 0.0
       DO c=1,nc
       DO h=1,nh
       fst = 0
@@ -228,6 +229,7 @@
       DO r = 1,nr
       DO g = 1,ng
         errinner = errinner + (flxm(g,r,h,c)-flxp(g,r,h,c))**2
+        normflxm = normflxm + flxm(g,r,h,c)**2
         flxp(g,r,h,c) = flxm(g,r,h,c)
       ENDDO
       ENDDO
@@ -235,7 +237,7 @@
       ENDDO
       ENDDO
       
-      errinner = sqrt(errinner/(nn*nr*nh*nc))
+      errinner = sqrt(errinner/normflxm)
       
 ! End inner iterations
       ENDDO
@@ -307,13 +309,29 @@
       REAL :: errtot
       REAL :: ccoftps(nn,nc,nc,n8),icoftps(nn,nc,nbd,n8)
       REAL :: ecoftps(nn,nbd,nc,n8),tcoftps(nn,nbd,nbd,n8)
+      REAL :: norme
       
       fout1 = 0.0
 
 ! Error check by source-correction estimation
+    !   print *,asrcm0
+
       CALL SRCCOR(ng,ndir,delt3/(2**niv),mu,eta,ksi,asrcm0,
      &            xshom0,errcor)
-      errtot = SUM(ABS(errcor))
+
+      errtot = 0.0
+      DO i = 1, ng
+         DO j = 1, ndir
+            errtot = errtot + ABS(errcor(i,j))**2
+            norme  = norme + (asrcm0(i,j,1))**2
+            ! errcor(i,j) = errcor(i,j) + errmul(i,j)
+         ENDDO
+      ENDDO
+      errtot = SQRT(errtot/norme)
+    !   print *,"cor",errtot
+    !   PRINT *,  errtot
+    !   READ(*,*)
+      
 
       IF(imax-imin>0 .AND. jmax-jmin>0 
      & .AND. kmax-kmin>0 .AND.  errtot >tol) THEN
@@ -342,6 +360,26 @@
 
         CALL SWEEP_8REGIONS(nn,2,asrcm1, finc1, aflx1, fout1,
      &                     ccof8,icof8,ecof8,tcof8, xinc, yinc, zinc)
+
+        CALL SRC2LVL(ng, ndir, asrcm1, sigt, delt3, errmul)
+        errtot = 0.0
+        DO i = 1, ng
+            DO j = 1, ndir
+               errtot = errtot + ABS(errmul(i,j))**2
+            !    norme  = norme + (asrcm0(i,j,1))**2
+            ENDDO
+        ENDDO
+
+        errtot = SQRT(errtot/norme)
+        ! print *,"errmult",errtot
+
+        IF(errtot >tol) THEN
+        !    print *, "Finalement pas ok"
+           ok = .FALSE.
+         ELSE
+           print *,"Finalement ok"
+           ok = .TRUE.
+        ENDIF
 
       ENDIF
       

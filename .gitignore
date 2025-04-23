@@ -1,5 +1,5 @@
 build/*
-mod/*
+moddir/*
 sweeprecur
 fort.9
 *.vtk

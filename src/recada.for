@@ -35,12 +35,13 @@
        ! Delta on each direction of the region
      &                          delt3,
       ! max inner iterations and tolerance for inner iterations
-     &                          maxinner, tolinner)
+     &                          maxinner, tolinner, tolcor)
 
       USE FLGOCT
       USE FLGBCD
       USE FLGINC
       USE SWEEP8ONE
+      USE SRCCORR
       
       IMPLICIT NONE
 
@@ -70,6 +71,7 @@
       INTEGER :: rdir(nd,*),dira(*),dirf(*)
       LOGICAL :: lgki
       REAL, INTENT(IN)     :: delt3(3)
+      REAL(KIND=8) :: pdslu4(ndir) ! pds to compute src 4 \int(L^4)
 
       INTEGER :: xout,yout,zout,fst
       INTEGER :: oc,oct,d,dd,da,c,h,i
@@ -88,14 +90,19 @@
       LOGICAL  :: ok 
       INTEGER  :: ii,jj,kk,rr 
       INTEGER , INTENT(IN) :: maxinner
-      REAL, INTENT(IN) :: tolinner
-      REAL :: errinner, normflxm
-      INTEGER :: cnt,g,r
+      REAL, INTENT(IN) :: tolinner, tolcor
+      REAL :: errinner, normflxm, normeinf
+      INTEGER :: cnt,g,r,j, nb_cell
 
       aflx = 0.0
       errinner = tolinner + 1.0
       cnt = 0
       flxp = flxm
+
+
+      CALL GAUSS_LU4(100,ndir,(/1.0, 1.0, 1.0/), mu,eta,ksi, pdslu4)
+
+
 
       DO WHILE (errinner>tolinner .AND. cnt<maxinner)
     
@@ -109,7 +116,6 @@
       
 !     Loop over octants of angular space in order defined by
 !     octant list "olst3D".
-
 
       DO oc=1,8
          oct=olst3D(oc)
@@ -125,9 +131,7 @@
          
 !        Sweep for all directions in octant "oct".
 !        initial direction of the octant 
-
          da = (oct-1)*ndir+1
-
 !        Directional source.
 
          CALL GIRSRC(nhrm,ng,ndir,nr,nh,nc,sphr(1,da),
@@ -145,7 +149,6 @@
      &                 sigt, zreg, aflx(:,:,:,oct), w,
      &                 asrc(:,:,:,oct), xshom0,
      &                 asrcm0)
-
 
 
         CALL ONE_COEF3D(nn,ndir,ng,mu,eta,ksi,
@@ -168,14 +171,24 @@
      &                          ccof,icof,ecof,tcof)
 
 
+        normeinf = 0.0
+        DO i=1,ng
+            DO j=1,ndir 
+                IF ( normeinf < ABS(aflx0(i,j)) ) THEN
+                    normeinf = ABS(aflx0(i,j))
+                ENDIF
+            ENDDO
+        ENDDO
+
       ! RECURIVE SWEEP
+        nb_cell = 0
      
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
      &                             nx,ny, nz,
      &                             xinc(oct), yinc(oct), zinc(oct),oct,
      &                             1,nx,1,ny,1,nz,
      &                             0,sigt, 
-     &                             mu,eta,ksi,w,
+     &                             mu,eta,ksi,w,pdslu4,
      &                             sgnc(:,:,oct),sgni(:,:,oct),
      &                             sgne(:,:,oct),sgnt(:,:,oct),
      &                             zreg, asrc(:,:,:,oct),
@@ -186,8 +199,12 @@
      &                             aflx0, aflx1,xshom0, xshom1,
      &                             asrcm0, asrcm1,finc0,finc1,
      &                             fout0,fout1,ccof,icof,ecof,tcof,
-     &                             ccof8,icof8,ecof8,tcof8,tolinner,
-     &                             errcor,errmul,ok,delt3,ii,jj,kk,rr)
+     &                             ccof8,icof8,ecof8,tcof8,
+     &                             tolinner,tolcor,
+     &                             errcor,errmul,ok,delt3,ii,jj,kk,rr,
+     &                             normeinf, nb_cell)
+
+      print *,"nb_cell", nb_cell
      
 
 ! Compute the flux moments
@@ -202,22 +219,38 @@
          ENDDO
          ENDDO
 
-         
       ENDDO
 !     Boundary conditions: specular reflection, albedo
 
-      DO oc=1,8
-         oct=olst3D(oc)
-!        Index of outgoing side.
-         xout=3-xinc(oct)
-         yout=3-yinc(oct)
-         zout=3-zinc(oct)
+
+      ! Reflection x
+    !     bflx(:,:,:,1,1) = bflx(:,:,:,1,2)
+    !     bflx(:,:,:,1,4) = bflx(:,:,:,1,3)
+    !     bflx(:,:,:,1,5) = bflx(:,:,:,1,6)
+    !     bflx(:,:,:,1,8) = bflx(:,:,:,1,7)
+    !   ! Reflection y
+    !     bfly(:,:,:,1,1) = bfly(:,:,:,1,4)
+    !     bfly(:,:,:,1,2) = bfly(:,:,:,1,3)
+    !     bfly(:,:,:,1,5) = bfly(:,:,:,1,8)
+    !     bfly(:,:,:,1,6) = bfly(:,:,:,1,7)
+    !   ! Reflection z
+    !     bflz(:,:,:,1,1) = bflz(:,:,:,1,5)
+    !     bflz(:,:,:,1,2) = bflz(:,:,:,1,6)
+    !     bflz(:,:,:,1,3) = bflz(:,:,:,1,7)
+    !     bflz(:,:,:,1,4) = bflz(:,:,:,1,8)
+
+!       DO oc=1,8
+!          oct=olst3D(oc)
+! !        Index of outgoing side.
+!          xout=3-xinc(oct)
+!          yout=3-yinc(oct)
+!          zout=3-zinc(oct)
          
-    !      CALL BCD2R3(oct,xout,yout,zout,
-    !  &               bflx,bfly,bflz,mu,eta,
-    !  &               ksi,w,pisn,rdir)
+!     !      CALL BCD2R3(oct,xout,yout,zout,
+!     !  &               bflx,bfly,bflz,mu,eta,
+!     !  &               ksi,w,pisn,rdir)
      
-      ENDDO 
+!       ENDDO 
 
 ! Compute the inner error
       errinner = 0.0
@@ -255,15 +288,16 @@
      &                             xinc,yinc,zinc, oct,
      &                             imin,imax,jmin,jmax,kmin,kmax,niv,
      &                             sigt, 
-     &                             mu,eta,ksi,w,
+     &                             mu,eta,ksi,w,pdslu4,
      &                             sgnc,sgni,sgne,sgnt,
      &                             zreg,asrc,aflx,
      &                             bflx, bfly, bflz,
      &                             aflx0, aflx1, xshom0, xshom1,
      &                             asrcm0, asrcm1,finc0,finc1,
      &                             fout0,fout1,ccof,icof,ecof,tcof,
-     &                             ccof8,icof8,ecof8,tcof8,tol,
-     &                             errcor,errmul,ok,delt3,i,j,k,r)
+     &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
+     &                             errcor,errmul,ok,delt3,i,j,k,r,
+     &                             norme, nb_cell)
      
       USE SWEEP8ONE
       USE SRCCORR 
@@ -280,10 +314,11 @@
     !   REAL, INTENT(IN)    :: flxm(ng,nr,nh,nc)
       REAL, INTENT(IN)    :: sigt(ng,*)
       REAL(KIND=8), INTENT(IN) :: mu(ndir),eta(ndir),ksi(ndir),w(ndir)
+      REAL(KIND=8), INTENT(IN) :: pdslu4(ndir)
       INTEGER, INTENT(IN) :: sgnc(nc,nc),sgni(nc,nbd)
       INTEGER, INTENT(IN) :: sgne(nbd,nc),sgnt(nbd,nbd)
       INTEGER, INTENT(IN) :: zreg(nr)
-      REAL, INTENT(IN) :: tol
+      REAL, INTENT(IN)    :: tol, tolcor
       REAL, INTENT(INOUT) :: asrc(nn,nr,nc)
       REAL, INTENT(INOUT) :: aflx(nn,nr,nc)
       REAL, INTENT(INOUT) :: bflx(nn,nb,ny*nz),bfly(nn,nb,nx*nz),
@@ -302,39 +337,37 @@
       REAL, INTENT(IN)     :: ecof8(nn,nbd,nc,n8),tcof8(nn,nbd,nbd,n8)
       LOGICAL, INTENT(INOUT)  :: ok 
       REAL, INTENT(IN)        :: delt3(3)
-      INTEGER, INTENT(INOUT)  :: i,j,k,r 
+      INTEGER, INTENT(INOUT)  :: i,j,k,r, nb_cell 
 
-      REAL :: aflxtps(nn,nc,n8),asrcmtps(ng,ndir,nc,n8),xshomtps(ng,n8)
-      REAL :: fouttps(nn,nb,3,n8)
+      REAL :: asrcmtps(ng,ndir,nc,n8),xshomtps(ng,n8)
+    !   REAL :: fouttps(nn,nb,3,n8)
       REAL :: errtot
       REAL :: ccoftps(nn,nc,nc,n8),icoftps(nn,nc,nbd,n8)
       REAL :: ecoftps(nn,nbd,nc,n8),tcoftps(nn,nbd,nbd,n8)
-      REAL :: norme
+      REAL, INTENT(INOUT) :: norme
       
       fout1 = 0.0
 
 ! Error check by source-correction estimation
-    !   print *,asrcm0
 
       CALL SRCCOR(ng,ndir,delt3/(2**niv),mu,eta,ksi,asrcm0,
-     &            xshom0,errcor)
+     &            xshom0,errcor,pdslu4)
 
       errtot = 0.0
       DO i = 1, ng
          DO j = 1, ndir
-            errtot = errtot + ABS(errcor(i,j))**2
-            norme  = norme + (asrcm0(i,j,1))**2
-            ! errcor(i,j) = errcor(i,j) + errmul(i,j)
+            IF ( errtot < ABS(errcor(i,j)) ) THEN
+                errtot = ABS(errcor(i,j))
+            ENDIF
          ENDDO
       ENDDO
       errtot = SQRT(errtot/norme)
-    !   print *,"cor",errtot
-    !   PRINT *,  errtot
-    !   READ(*,*)
+      print*,  errtot
+      print *, tolcor/(2**niv)
+      READ(*,*)
       
-
       IF(imax-imin>0 .AND. jmax-jmin>0 
-     & .AND. kmax-kmin>0 .AND.  errtot >tol) THEN
+     & .AND. kmax-kmin>0 .AND.  errtot > tolcor/(2**niv)) THEN
         ok = .FALSE.
       ELSE
         ok = .TRUE.
@@ -361,25 +394,25 @@
         CALL SWEEP_8REGIONS(nn,2,asrcm1, finc1, aflx1, fout1,
      &                     ccof8,icof8,ecof8,tcof8, xinc, yinc, zinc)
 
-        CALL SRC2LVL(ng, ndir, asrcm1, sigt, delt3, errmul)
-        errtot = 0.0
-        DO i = 1, ng
-            DO j = 1, ndir
-               errtot = errtot + ABS(errmul(i,j))**2
-            !    norme  = norme + (asrcm0(i,j,1))**2
-            ENDDO
-        ENDDO
+        ! CALL SRC2LVL(ng, ndir, asrcm1, sigt, delt3/(2**niv), errmul)
+        ! errtot = 0.0
+        
+        ! DO i = 1, ng
+        !     DO j = 1, ndir
+        !         IF ( errtot < ABS(errmul(i,j)) ) THEN
+        !             errtot = ABS(errmul(i,j))
+        !         ENDIF
+        !     ENDDO
+        ! ENDDO
+        ! errtot = SQRT(errtot/norme)
 
-        errtot = SQRT(errtot/norme)
-        ! print *,"errmult",errtot
-
-        IF(errtot >tol) THEN
-        !    print *, "Finalement pas ok"
-           ok = .FALSE.
-         ELSE
-           print *,"Finalement ok"
-           ok = .TRUE.
-        ENDIF
+        ! IF(errtot > tolcor/(2**niv)) THEN
+        ! !    print *, "Finalement pas ok"
+        !    ok = .FALSE.
+        !  ELSE
+        !    print *,"Finalement ok"
+        !    ok = .TRUE.
+        ! ENDIF
 
       ENDIF
       
@@ -393,6 +426,7 @@
      &                   bfly,
      &                   bflz,
      &                   finc0)
+    
 
             CALL SWEEP_ONEREGION(nn,2,asrcm0, finc0, aflx0, fout0,
      &                          ccof,icof,ecof,tcof)
@@ -410,6 +444,7 @@
      &                   nx,ny,nz,
      &                   bflx, bfly, bflz, fout0)
 
+        nb_cell = nb_cell + 1
           RETURN
 
       ELSE IF((imax-imin)>1) THEN
@@ -417,35 +452,27 @@
 !        - call recursively the subroutine for the 8 nodes of level-1
 
         asrcmtps(:,:,:,1) = asrcm1(:,:,:, xinc+2*(yinc-1) + 4*(zinc-1))  
-        aflxtps(:,:,1) =   aflx1(:,:, xinc+2*(yinc-1) + 4*(zinc-1))
         xshomtps(:,1) = xshom1(:,       xinc+2*(yinc-1) + 4*(zinc-1))
 
         asrcmtps(:,:,:,2) = asrcm1(:,:,:,3-xinc+2*(yinc-1) + 4*(zinc-1))  
-        aflxtps(:,:,2) = aflx1(:,:,  3-xinc+2*(yinc-1) + 4*(zinc-1))
         xshomtps(:,2) = xshom1(:,      3-xinc+2*(yinc-1) + 4*(zinc-1))
 
         asrcmtps(:,:,:,3)= asrcm1(:,:,:,xinc+2*(2-yinc) + 4*(zinc-1))  
-        aflxtps(:,:,3)= aflx1(:,:,  xinc+2*(2-yinc) + 4*(zinc-1))
         xshomtps(:,3)= xshom1(:,      xinc+2*(2-yinc) + 4*(zinc-1))
 
         asrcmtps(:,:,:,4)=asrcm1(:,:,:,3-xinc + 2*(2-yinc) + 4*(zinc-1))  
-        aflxtps(:,:,4)= aflx1(:,:,  3-xinc + 2*(2-yinc) + 4*(zinc-1))
         xshomtps(:,4)= xshom1(:,      3-xinc + 2*(2-yinc) + 4*(zinc-1))
 
         asrcmtps(:,:,:,5)= asrcm1(:,:,:,xinc + 2*(yinc-1) + 4*(2-zinc))  
-        aflxtps(:,:,5)= aflx1(:,:,  xinc + 2*(yinc-1) + 4*(2-zinc))
         xshomtps(:,5)= xshom1(:,      xinc + 2*(yinc-1) + 4*(2-zinc))
 
         asrcmtps(:,:,:,6)=asrcm1(:,:,:,3-xinc + 2*(yinc-1) + 4*(2-zinc))  
-        aflxtps(:,:,6)= aflx1(:,:,  3-xinc + 2*(yinc-1) + 4*(2-zinc))
         xshomtps(:,6) = xshom1(:,     3-xinc + 2*(yinc-1) + 4*(2-zinc))  
 
         asrcmtps(:,:,:,7)= asrcm1(:,:,:,xinc+2*(2-yinc) + 4*(2-zinc))  
-        aflxtps(:,:,7)= aflx1(:,:,  xinc+2*(2-yinc) + 4*(2-zinc))
         xshomtps(:,7)= xshom1(:,      xinc+2*(2-yinc) + 4*(2-zinc))
 
         asrcmtps(:,:,:,8)=asrcm1(:,:,:,3-xinc + 2*(2-yinc) + 4*(2-zinc))  
-        aflxtps(:,:,8) = aflx1(:,:, 3-xinc + 2*(2-yinc) + 4*(2-zinc))
         xshomtps(:,8)= xshom1(:,      3-xinc + 2*(2-yinc) + 4*(2-zinc))
 
         
@@ -501,18 +528,19 @@
      &   (kmin + kmax + (zinc-1)*(jmax-jmin))/2,
      &                             niv+1,
      &                             sigt,
-     &                             mu,eta,ksi,w,
+     &                             mu,eta,ksi,w,pdslu4,
      &                             sgnc,sgni,sgne,sgnt,
      &                             zreg,asrc,aflx,
      &                             bflx, bfly, bflz,
-     &                             aflxtps(:,:,1),aflx1,
+     &                             aflx0,aflx1,
      &                             xshomtps(:,1),xshom1,
      &                             asrcmtps(:,:,:,1),asrcm1,finc0,finc1,
      &                             fout0,fout1,
      &                             ccoftps(:,:,:,1),icoftps(:,:,:,1),
      &                             ecoftps(:,:,:,1),tcoftps(:,:,:,1),
-     &                             ccof8,icof8,ecof8,tcof8,tol,
-     &                             errcor,errmul,ok,delt3,i,j,k,r)
+     &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
+     &                             errcor,errmul,ok,delt3,i,j,k,r,norme,
+     &                             nb_cell)
       
 
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
@@ -526,19 +554,19 @@
      &   (kmin + kmax + (zinc-1)*(jmax-jmin))/2,
      &                             niv+1,
      &                             sigt,
-     &                             mu,eta,ksi,w,
+     &                             mu,eta,ksi,w,pdslu4,
      &                             sgnc,sgni,sgne,sgnt,
      &                             zreg,asrc,aflx,
      &                             bflx, bfly, bflz,
-     &                             aflxtps(:,:,2),aflx1,
+     &                             aflx0,aflx1,
      &                             xshomtps(:,2),xshom1,
      &                             asrcmtps(:,:,:,2),asrcm1,finc0,finc1,
      &                             fout0,fout1,
      &                             ccoftps(:,:,:,2),icoftps(:,:,:,2),
      &                             ecoftps(:,:,:,2),tcoftps(:,:,:,2),
-     &                             ccof8,icof8,ecof8,tcof8,tol,
-     &                             errcor,errmul,ok,delt3,i,j,k,r)
-
+     &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
+     &                             errcor,errmul,ok,delt3,i,j,k,r,norme,
+     &                             nb_cell)
 
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
      &                             nx,ny, nz,
@@ -551,19 +579,19 @@
      &   (kmin + kmax + (zinc-1)*(jmax-jmin))/2,
      &                             niv+1,
      &                             sigt,
-     &                             mu,eta,ksi,w,
+     &                             mu,eta,ksi,w,pdslu4,
      &                             sgnc,sgni,sgne,sgnt,
      &                             zreg,asrc,aflx,
      &                             bflx, bfly, bflz,
-     &                             aflxtps(:,:,3),aflx1,
+     &                             aflx0,aflx1,
      &                             xshomtps(:,3),xshom1,
      &                             asrcmtps(:,:,:,3),asrcm1,finc0,finc1,
      &                             fout0,fout1,
      &                             ccoftps(:,:,:,3),icoftps(:,:,:,3),
      &                             ecoftps(:,:,:,3),tcoftps(:,:,:,3),
-     &                             ccof8,icof8,ecof8,tcof8,tol,
-     &                             errcor,errmul,ok,delt3,i,j,k,r)
-
+     &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
+     &                             errcor,errmul,ok,delt3,i,j,k,r,norme,
+     &                             nb_cell)
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
      &                             nx,ny, nz,
      &                             xinc,yinc,zinc, oct,
@@ -575,19 +603,19 @@
      &   (kmin + kmax + (zinc-1)*(jmax-jmin))/2,
      &                             niv+1,
      &                             sigt,
-     &                             mu,eta,ksi,w,
+     &                             mu,eta,ksi,w,pdslu4,
      &                             sgnc,sgni,sgne,sgnt,
      &                             zreg,asrc,aflx,
      &                             bflx, bfly, bflz,
-     &                             aflxtps(:,:,4),aflx1,
+     &                             aflx0,aflx1,
      &                             xshomtps(:,4),xshom1,
      &                             asrcmtps(:,:,:,4),asrcm1,finc0,finc1,
      &                             fout0,fout1,
      &                             ccoftps(:,:,:,4),icoftps(:,:,:,4),
      &                             ecoftps(:,:,:,4),tcoftps(:,:,:,4),
-     &                             ccof8,icof8,ecof8,tcof8,tol,
-     &                             errcor,errmul,ok,delt3,i,j,k,r)
-
+     &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
+     &                             errcor,errmul,ok,delt3,i,j,k,r,norme,
+     &                             nb_cell)
 
 !-----------------------------------------------------------------------
 
@@ -602,18 +630,19 @@
      &   (kmin + kmax + (2-zinc)*(kmax-kmin))/2,
      &                             niv+1,
      &                             sigt,
-     &                             mu,eta,ksi,w,
+     &                             mu,eta,ksi,w,pdslu4,
      &                             sgnc,sgni,sgne,sgnt,
      &                             zreg,asrc,aflx,
      &                             bflx, bfly, bflz,
-     &                             aflxtps(:,:,5),aflx1,
+     &                             aflx0,aflx1,
      &                             xshomtps(:,5),xshom1,
      &                             asrcmtps(:,:,:,5),asrcm1,finc0,finc1,
      &                             fout0,fout1,
      &                             ccoftps(:,:,:,5),icoftps(:,:,:,5),
      &                             ecoftps(:,:,:,5),tcoftps(:,:,:,5),
-     &                             ccof8,icof8,ecof8,tcof8,tol,
-     &                             errcor,errmul,ok,delt3,i,j,k,r)
+     &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
+     &                             errcor,errmul,ok,delt3,i,j,k,r,norme,
+     &                             nb_cell)
 
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
      &                             nx,ny, nz,
@@ -626,18 +655,19 @@
      &   (kmin + kmax + (2-zinc)*(kmax-kmin))/2,
      &                             niv+1,
      &                             sigt,
-     &                             mu,eta,ksi,w,
+     &                             mu,eta,ksi,w,pdslu4,
      &                             sgnc,sgni,sgne,sgnt,
      &                             zreg,asrc,aflx,
      &                             bflx, bfly, bflz,
-     &                             aflxtps(:,:,6),aflx1,
+     &                             aflx0,aflx1,
      &                             xshomtps(:,6),xshom1,
      &                             asrcmtps(:,:,:,6),asrcm1,finc0,finc1,
      &                             fout0,fout1,
      &                             ccoftps(:,:,:,6),icoftps(:,:,:,6),
      &                             ecoftps(:,:,:,6),tcoftps(:,:,:,6),
-     &                             ccof8,icof8,ecof8,tcof8,tol,
-     &                             errcor,errmul,ok,delt3,i,j,k,r)  
+     &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
+     &                             errcor,errmul,ok,delt3,i,j,k,r,norme,  
+     &                             nb_cell)
 
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
      &                             nx,ny, nz,
@@ -650,19 +680,20 @@
      &   (kmin + kmax + (2-zinc)*(kmax-kmin))/2,
      &                             niv+1,
      &                             sigt,
-     &                             mu,eta,ksi,w,
+     &                             mu,eta,ksi,w,pdslu4,
      &                             sgnc,sgni,sgne,sgnt,
      &                             zreg,asrc,aflx,
      &                             bflx, bfly, bflz,
-     &                             aflxtps(:,:,7),aflx1,
+     &                             aflx0,aflx1,
      &                             xshomtps(:,7),xshom1,
      &                             asrcmtps(:,:,:,7),asrcm1,finc0,finc1,
      &                             fout0,fout1,
      &                             ccoftps(:,:,:,7),icoftps(:,:,:,7),
      &                             ecoftps(:,:,:,7),tcoftps(:,:,:,7),
-     &                             ccof8,icof8,ecof8,tcof8,tol,
-     &                             errcor,errmul,ok,delt3,i,j,k,r)       
-        
+     &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
+     &                             errcor,errmul,ok,delt3,i,j,k,r,norme,       
+     &                             nb_cell)
+
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
      &                             nx,ny, nz,
      &                             xinc,yinc,zinc, oct,
@@ -674,19 +705,19 @@
      &   (kmin + kmax + (2-zinc)*(kmax-kmin))/2,
      &                             niv+1,
      &                             sigt,
-     &                             mu,eta,ksi,w,
+     &                             mu,eta,ksi,w,pdslu4,
      &                             sgnc,sgni,sgne,sgnt,
      &                             zreg,asrc,aflx,
      &                             bflx, bfly, bflz,
-     &                             aflxtps(:,:,8),aflx1,
+     &                             aflx0,aflx1,
      &                             xshomtps(:,8),xshom1,
      &                             asrcmtps(:,:,:,8),asrcm1,finc0,finc1,
      &                             fout0,fout1,
      &                             ccoftps(:,:,:,8),icoftps(:,:,:,8),
      &                             ecoftps(:,:,:,8),tcoftps(:,:,:,8),
-     &                             ccof8,icof8,ecof8,tcof8,tol,
-     &                             errcor,errmul,ok,delt3,i,j,k,r)       
-
+     &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
+     &                             errcor,errmul,ok,delt3,i,j,k,r,norme,       
+     &                             nb_cell)
     !- write the outgoing angular flux of node-0 on the fine-mesh
     ! boundary flux
          RETURN
@@ -704,5 +735,6 @@
      &                      bflx, bfly, bflz, fout1)
 
       ENDIF
+      nb_cell = nb_cell + 8
 
       END SUBROUTINE RECADA_ONE_OCTANT

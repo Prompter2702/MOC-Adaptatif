@@ -23,7 +23,7 @@
       REAL(KIND=8)    :: flxoct(ng,nr)
       INTEGER :: kk,jj,ii,cnt,icnt,jcnt,kcnt,x,y,z,r,d,
      &           i_half,j_half,k_half,itot,ktot,jtot,m
-      REAL(KIND=8) :: aux(ng,n8), auy(ng,n8), xsmoy(ng,n8)
+      REAL(KIND=8) :: aux(ng,n8), auy(ng,n8), xsmoy(ng,n8) 
 
       i_half = (imin+imax)/2
       itot   = (imax-imin)/2
@@ -88,7 +88,7 @@
       DO m=1,ng
         DO kk=1,n8
           IF (auy(m,kk) == 0.0D0) THEN
-            xshom1(m,kk) = xsmoy(m,kk)/(itot+1)*(jtot+1)*(ktot+1)
+            xshom1(m,kk) = xsmoy(m,kk)/((itot+1)*(jtot+1)*(ktot+1))
           ENDIF
         ENDDO
       ENDDO
@@ -121,16 +121,19 @@
         
         ! locals 
         REAL(KIND=8)    :: flxoct(ng,nr)
-        INTEGER :: x,y,z,r,d,m
+        INTEGER :: x,y,z,r,d,m, Di,Dj,Dk
         REAL(KIND=8) :: aux(ng), auy(ng), xsmoy(ng)
-   
+        Di = imax - imin + 1
+        Dj = jmax - jmin + 1
+        Dk = kmax - kmin + 1
+
         flxoct = 0.0
         DO z=kmin,kmax
           DO y=jmin,jmax
               DO x=imin,imax
                   DO d=1,ndir
                   r = ((z-1)*ny + (y-1))*nx + x 
-                  flxoct(:,r) = flxoct(:,r) + 8.0*w(d)*aflx(:,d,r,1)
+                  flxoct(:,r) = flxoct(:,r) + 8*w(d)*aflx(:,d,r,1)
                   ENDDO
               ENDDO 
           ENDDO
@@ -151,13 +154,13 @@
               auy(:) = auy(:) + flxoct(:,r)
               srchomo0(:,1) = srchomo0(:,1) + asrc(:,r,1)
               srchomo0(:,2) = srchomo0(:,2) + ( asrc(:,r,2)
-     &        + asrc(:,r,1)*(2*x-imax-imin) )/(imax-imin+1)
+     &        + asrc(:,r,1)*(2*x-imax-imin) )/Di
      
               srchomo0(:,3) = srchomo0(:,3) + ( asrc(:,r,3)
-     &        + asrc(:,r,1)*(2*y-jmax-jmin) )/(jmax-jmin+1)
+     &        + asrc(:,r,1)*(2*y-jmax-jmin) )/Dj
 
               srchomo0(:,4) = srchomo0(:,4) + ( asrc(:,r,4)
-     &        + asrc(:,r,1)*(2*z-kmax-kmin) )/(kmax-kmin+1)
+     &        + asrc(:,r,1)*(2*z-kmax-kmin) )/Dk
 
             ENDDO
           ENDDO
@@ -166,11 +169,11 @@
       xshom0= aux/auy
       DO m=1,ng
         IF (auy(m) == 0.0D0) THEN
-          xshom0(m) = xsmoy(m)/(kmax-kmin+1)*(jmax-jmin+1)*(imax-imin+1)
+          xshom0(m) = xsmoy(m)/(Di*Dj*Dk)
         ENDIF
       ENDDO
 
-      srchomo0 = srchomo0/((imax-imin+1)*(jmax-jmin+1)*(kmax-kmin+1))  
+      srchomo0 = srchomo0/(Di*Dj*Dk)  
 
       END SUBROUTINE XSSRCHOMO0
 
@@ -194,7 +197,10 @@
      &                       bflz(nn,nb,nx,ny)
        
       REAL, INTENT(INOUT)  :: finc0(nn,nb,nb)
-      INTEGER :: i,j,k
+      INTEGER :: i,j,k, Di,Dj,Dk
+      Di = imax - imin + 1
+      Dj = jmax - jmin + 1
+      Dk = kmax - kmin + 1 
     
       finc0 = 0.0
     
@@ -202,9 +208,9 @@
         DO j=jmin, jmax
             finc0(:,1,1) = finc0(:,1,1) + bflx(:,1,j,k)
             finc0(:,2,1) = finc0(:,2,1) + (bflx(:,2,j,k) 
-     &       + bflx(:,1,j,k)*(2*j-jmax-jmin))/(jmax-jmin+1)
+     &       + bflx(:,1,j,k)*(2*j-jmax-jmin))/Dj
             finc0(:,3,1) = finc0(:,3,1) + (bflx(:,3,j,k)
-     &       + bflx(:,1,j,k)*(2*k-kmax-kmin))/(kmax-kmin+1)
+     &       + bflx(:,1,j,k)*(2*k-kmax-kmin))/Dk
         ENDDO
       ENDDO
          
@@ -212,9 +218,9 @@
         DO i=imin, imax
           finc0(:,1,2) = finc0(:,1,2) + bfly(:,1,i,k)
           finc0(:,2,2) = finc0(:,2,2) + (bfly(:,2,i,k)
-     &       + bfly(:,1,i,k)*(2*i-imax-imin))/(imax-imin+1)
+     &       + bfly(:,1,i,k)*(2*i-imax-imin))/Di
           finc0(:,3,2) = finc0(:,3,2) + (bfly(:,3,i,k)
-     &       + bfly(:,1,i,k)*(2*k-kmax-kmin))/(kmax-kmin+1)
+     &       + bfly(:,1,i,k)*(2*k-kmax-kmin))/Dk
         ENDDO
       ENDDO
          
@@ -222,15 +228,15 @@
         DO i=imin, imax
            finc0(:,1,3) = finc0(:,1,3) + bflz(:,1,i,j)
            finc0(:,2,3) = finc0(:,2,3) + (bflz(:,2,i,j)
-     &       + bflz(:,1,i,j)*(2*i-imax-imin))/(imax-imin+1)
+     &       + bflz(:,1,i,j)*(2*i-imax-imin))/Di
            finc0(:,3,3) = finc0(:,3,3) + (bflz(:,3,i,j)
-     &       + bflz(:,1,i,j)*(2*j-jmax-jmin))/(jmax-jmin+1)
+     &       + bflz(:,1,i,j)*(2*j-jmax-jmin))/Dj
         ENDDO
       ENDDO
              
-      finc0(:,:,1) = finc0(:,:,1)/((kmax-kmin+1)*(jmax-jmin+1))
-      finc0(:,:,2) = finc0(:,:,2)/((imax-imin+1)*(kmax-kmin+1))
-      finc0(:,:,3) = finc0(:,:,3)/((imax-imin+1)*(jmax-jmin+1))
+      finc0(:,:,1) = finc0(:,:,1)/(Dk*Dj)
+      finc0(:,:,2) = finc0(:,:,2)/(Di*Dk)
+      finc0(:,:,3) = finc0(:,:,3)/(Di*Dj)
     
       END SUBROUTINE MERGEBOUND0
    
@@ -357,34 +363,37 @@
      &                       bfly(nn,nb,nx,nz),
      &                       bflz(nn,nb,nx,ny)
  
-      INTEGER :: i,j,k
+      INTEGER :: i,j,k, Di,Dj,Dk
+      Di = imax - imin + 1
+      Dj = jmax - jmin + 1
+      Dk = kmax - kmin + 1      
  
       DO k=kmin, kmax
         DO j=jmin, jmax
           bflx(:,1,j,k) = fout0(:,1,1)
-     &            + 3.0*fout0(:,2,1)*(2*j-jmin-jmax)/(jmax-jmin+1.0)
-     &            + 3.0*fout0(:,3,1)*(2*k-kmin-kmax)/(kmax-kmin+1.0)
-          bflx(:,2,j,k) = fout0(:,2,1)/(jmax-jmin+1)
-          bflx(:,3,j,k) = fout0(:,3,1)/(kmax-kmin+1)  
+     &            + 3.0*fout0(:,2,1)*(2*j-jmin-jmax)/Dj
+     &            + 3.0*fout0(:,3,1)*(2*k-kmin-kmax)/Dk
+          bflx(:,2,j,k) = fout0(:,2,1)/Dj
+          bflx(:,3,j,k) = fout0(:,3,1)/Dk  
         ENDDO
       ENDDO
 
       DO k=kmin, kmax
         DO i=imin, imax
           bfly(:,1,i,k) = fout0(:,1,2)
-     &           + 3.0*fout0(:,2,2)*(2.0*i-imax-imin)/(imax-imin+1.0)
-     &           + 3.0*fout0(:,3,2)*(2.0*k-kmax-kmin)/(kmax-kmin+1.0)
-          bfly(:,2,i,k) = fout0(:,2,2)/(imax-imin+1)
-          bfly(:,3,i,k) = fout0(:,3,2)/(kmax-kmin+1)
+     &           + 3.0*fout0(:,2,2)*(2.0*i-imax-imin)/Di
+     &           + 3.0*fout0(:,3,2)*(2.0*k-kmax-kmin)/Dk
+          bfly(:,2,i,k) = fout0(:,2,2)/Di
+          bfly(:,3,i,k) = fout0(:,3,2)/Dk
         ENDDO
       ENDDO
       DO j=jmin, jmax
         DO i=imin, imax
           bflz(:,1,i,j) = fout0(:,1,3)
-     &           + 3.0*fout0(:,2,3)*(2*i-imax-imin)/(imax-imin+1.0)
-     &           + 3.0*fout0(:,3,3)*(2*j-jmax-jmin)/(jmax-jmin+1.0)
-          bflz(:,2,i,j) = fout0(:,2,3)/(imax-imin+1)
-          bflz(:,3,i,j) = fout0(:,3,3)/(jmax-jmin+1)
+     &           + 3.0*fout0(:,2,3)*(2*i-imax-imin)/Di
+     &           + 3.0*fout0(:,3,3)*(2*j-jmax-jmin)/Dj
+          bflz(:,2,i,j) = fout0(:,2,3)/Di
+          bflz(:,3,i,j) = fout0(:,3,3)/Dj
         ENDDO
       ENDDO
       
@@ -550,22 +559,77 @@
         REAL, INTENT(IN) :: aflx0(nn,nc)
         REAL, INTENT(OUT) :: aflx(nn,nr,nc)
    
-        INTEGER :: i,j,k,r
+        INTEGER :: i,j,k,r, Di, Dj, Dk
+        Di = imax - imin + 1
+        Dj = jmax - jmin + 1
+        Dk = kmax - kmin + 1
 
         DO i=imin,imax
           DO j=jmin,jmax
             DO k=kmin,kmax
                 r = ((k-1)*ny + (j-1))*nx + i
                 aflx(:,r,1) = aflx0(:,1) 
-     &                + 3.0*aflx0(:,2)*(2*i-imax-imin)/(imax-imin+1)
-     &                + 3.0*aflx0(:,3)*(2*j-jmax-jmin)/(jmax-jmin+1)
-     &                + 3.0*aflx0(:,4)*(2*k-kmax-kmin)/(kmax-kmin+1)
-                aflx(:,r,2) = aflx0(:,2)/(imax-imin+1)
-                aflx(:,r,3) = aflx0(:,3)/(jmax-jmin+1)
-                aflx(:,r,4) = aflx0(:,4)/(kmax-kmin+1)
+     &                + 3.0*aflx0(:,2)*(2*i-imax-imin)/Di
+     &                + 3.0*aflx0(:,3)*(2*j-jmax-jmin)/Dj
+     &                + 3.0*aflx0(:,4)*(2*k-kmax-kmin)/Dk
+                aflx(:,r,2) = aflx0(:,2)/Di
+                aflx(:,r,3) = aflx0(:,3)/Dj
+                aflx(:,r,4) = aflx0(:,4)/Dk
 
             ENDDO
           ENDDO
         ENDDO
 
         END SUBROUTINE SPLITAFLX0
+
+
+!-----------------------------------------------------------------------
+
+      SUBROUTINE SPLITVOLHCC(nn,nr,npix,nx,ny,nz,
+     &                  imin,imax,jmin,jmax,kmin,kmax,
+     &                  flxmhcc, flxm, bary, list_pix)
+
+      
+!      nr number of pixel in hcc, npix nb of pixel in the region
+!      imin, imax ... coordinates of the cube circonscrit of the region
+!      flxmhcc moments of the hcc flux
+!      bary barycenter of the region
+!      list_pix list of the pixel in the region
+     
+      IMPLICIT NONE
+
+      INTEGER, PARAMETER :: nc=4
+
+      INTEGER, INTENT(IN) :: nn, nr, npix, nx,ny,nz
+      INTEGER, INTENT(IN) :: imin,imax,jmin,jmax,kmin,kmax
+      REAL, INTENT(IN)    :: flxmhcc(nn,nc), bary(3)
+      REAL, INTENT(INOUT) :: flxm(nn,nr,nc)
+      INTEGER, INTENT(IN) :: list_pix(npix,3)
+
+      INTEGER :: p,i,j,k,r, Di, Dj, Dk
+
+      Di = imax - imin + 1
+      Dj = jmax - jmin + 1
+      Dk = kmax - kmin + 1
+
+
+      DO p=1,npix 
+        i = list_pix(p,1)
+        j = list_pix(p,2)
+        k = list_pix(p,3)
+        r = i + (j-1)*nx + (k-1)*nx*ny
+        flxm(:,r,1) = flxmhcc(:,1) 
+     &       + 3.0*flxmhcc(:,2)*(2*i + 1.0 - 2.0*bary(1))/Di
+     &       + 3.0*flxmhcc(:,3)*(2*j + 1.0 - 2.0*bary(2))/Dj
+     &       + 3.0*flxmhcc(:,4)*(2*j + 1.0 - 2.0*bary(3))/Dk
+        flxm(:,r,2) = flxmhcc(:,2)/Di
+        flxm(:,r,3) = flxmhcc(:,3)/Dj
+        flxm(:,r,4) = flxmhcc(:,4)/Dk
+      ENDDO
+
+
+
+
+
+      END SUBROUTINE SPLITVOLHCC
+        

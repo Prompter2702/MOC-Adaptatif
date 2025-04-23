@@ -42,9 +42,9 @@
 
       DO c=1,nc
       DO d =1,ndir 
-         asrc(d,:ng,:nr,c)=sphr(1,d)*tmom(:ng,:nr,1,c)
+         asrc(:ng,d,:nr,c)=sphr(1,d)*tmom(:ng,:nr,1,c)
          DO h=2,nh
-            asrc(d,:ng,:nr,c) = asrc(d,:ng,:nr,c) + 
+            asrc(:ng,d,:nr,c) = asrc(:ng,d,:nr,c) + 
      &                          sphr(h,d)*tmom(:ng,:nr,h,c)
          ENDDO
       ENDDO

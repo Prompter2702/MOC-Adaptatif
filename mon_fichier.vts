@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<VTKFile type="StructuredGrid" version="0.1" byte_order="LittleEndian" header_type="UInt32" compressor="vtkZLibDataCompressor">
+  <StructuredGrid WholeExtent="0 -1 0 -1 0 -1">
+  <Piece Extent="0 -1 0 -1 0 -1">
+    <PointData>
+    </PointData>
+    <CellData>
+    </CellData>
+    <Points>
+    </Points>
+  </Piece>
+  </StructuredGrid>
+</VTKFile>

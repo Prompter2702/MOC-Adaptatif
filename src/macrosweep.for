@@ -12,7 +12,7 @@
      &                          dira,dirf,
      &                          lgki,
      &                          flxm,
-     &                          maxinner, tolinner)
+     &                          maxinner, tolinner, tolcor)
 
       USE FLGINC
       USE SNQHRM
@@ -26,7 +26,7 @@
       INTEGER , INTENT(IN) :: nb,nbd,nx,ny,nz,nani,nhrm,nd,ndir
       REAL, INTENT(IN)     :: sigt(ng,nmat),sigs(ng,0:nani,nmat)
       REAL, INTENT(IN)     :: delt3(3)
-      REAL, INTENT(IN)     :: tolinner
+      REAL, INTENT(IN)     :: tolinner, tolcor
       INTEGER, INTENT(IN)  :: maxinner
 
       REAL, INTENT(INOUT) ::bflx(nn,nb,ny*nz,2,noct,ncelx,ncely,ncelz)
@@ -90,7 +90,7 @@
      &                     dira,dirf,
      &                     lgki,
      &                     flxm(:,:,:,:,x,y,z), delt3,
-     &                     maxinner,tolinner)
+     &                     maxinner,tolinner, tolcor)
 
             ! print *,"bflx2", bflx(:,:,:,1,7,x,y,z)
             ! print *,"bflx" ,bflx(:,:,:,:,:,x,y,z)

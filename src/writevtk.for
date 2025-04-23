@@ -37,7 +37,7 @@
 
 
       WRITE(10, '(A,3I5)') "DIMENSIONS", a, b,c
-      WRITE(10, '(A,1I5,A)') "POINTS", a*b*c," float"
+      WRITE(10, '(A,1I10,A)') "POINTS", a*b*c," float"
 
       DO k = 0,c-1
         DO j = 0,b-1
@@ -49,7 +49,7 @@
       END DO
 
 
-      WRITE(10, '(A,1I5)') "CELL_DATA", nx*ny*nz
+      WRITE(10, '(A,1I10)') "CELL_DATA", nx*ny*nz
       WRITE(10, '(A)') "SCALARS CellValues float 1"
       WRITE(10, '(A)') "LOOKUP_TABLE default"
 
@@ -58,6 +58,7 @@
           DO i = 1,nx
             WRITE(10, '(F10.5)', advance='no') flx(i,j,k)
         END DO
+        WRITE(10, *)  ! Nouvelle ligne
         END DO
         WRITE(10, *)  ! Nouvelle ligne
       END DO

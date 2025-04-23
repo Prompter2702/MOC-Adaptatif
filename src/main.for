@@ -11,13 +11,15 @@
 
       IMPLICIT NONE
 
-      INTEGER, PARAMETER :: ng = 1, ndir = 3, ndim = 3
+      INTEGER, PARAMETER :: n = 8   ! Formule triangle
+      INTEGER, PARAMETER :: ityp = 4 ! ChebyshevDoubleLegendre
+      INTEGER, PARAMETER :: ng = 1, ndir =(n/2)*((n/2)+1)/2, ndim = 3
       INTEGER, PARAMETER :: nn = ndir*ng
       INTEGER, PARAMETER :: nc=4, nb=3, nd = ndir*8
       INTEGER, PARAMETER :: nbd = nb*ndim
-      INTEGER, PARAMETER :: nx = 16
-      INTEGER, PARAMETER :: ny = 16
-      INTEGER, PARAMETER :: nz = 16
+      INTEGER, PARAMETER :: nx = 32
+      INTEGER, PARAMETER :: ny = 32
+      INTEGER, PARAMETER :: nz = 32
       INTEGER, PARAMETER :: ncelx = 1, ncely = 1, ncelz = 1
       INTEGER, PARAMETER :: nbfx = ny*nz,nbfy=nx*nz,nbfz=nx*ny
       INTEGER, PARAMETER :: nani=0,nhrm=1 
@@ -26,7 +28,8 @@
       INTEGER, PARAMETER :: nmat = 1
       INTEGER, PARAMETER :: maxinner = 100
       REAL, PARAMETER    :: tolinner = 1.0e-4
-
+      REAL, PARAMETER    :: tolcor   = 1.0e-4
+    !   REAL, PARAMETER    :: tolcor   = -1.0
 ! Nombre de milieux
 
       INTEGER, PARAMETER :: noct = 8
@@ -40,7 +43,7 @@
       REAL    :: sphr(nhrm,nd)
       INTEGER :: sgnc(nc,nc,noct),sgni(nc,nbd,noct)
       INTEGER :: sgne(nc,nbd,noct),sgnt(nbd,nbd,noct)
-      INTEGER :: zreg(ncelx,ncely,ncelz,nr)
+      INTEGER :: zreg(nr,ncelx,ncely,ncelz)
       REAL    :: aflx(nn,nr,nc,noct)
       REAL    :: dsrc(nn,nr,nc,noct)
       REAL    :: finc(nn,nbd),fout(nn,nbd)
@@ -52,7 +55,7 @@
       REAL    :: delt3(3)
 
       INTEGER :: count_start, count_end, count_rate
-      INTEGER :: x,y,z,r,oct, cnt
+      INTEGER :: x,y,z,r,oct,cnt
       CHARACTER(LEN=20) :: name
 
 
@@ -60,25 +63,25 @@
   
       delt3 = (/delt, delt, delt/)
 
+      sigt(:,1) = 1.0
+      sigs(:,0,1) = 0.1
       zreg = 1
-      sigs = 0.0
-      sigt = 1.0
-      sigs(:,0,:) = 0.4
+
       sigg = 0.0
 
       bflx = 0.0
       bfly = 0.0
       bflz = 0.0
+      
       flxm = 0.0
 
       DO oct=1,8
-        bflx(:,1,:,xinc(oct),oct, :,:,:) = 0.0
-        bfly(:,1,:,yinc(oct),oct, :,:,:) = 0.0    
-        bflz(:,1,:,zinc(oct),oct, :,:,:) = 0.0
+        bflx(:,1,:,:,:, :,:,:) = 1.0
       END DO
 
       aflx = 1.0 
       srcm = 0.0
+
 
     !   DO z=nz/2,nz/2+1
     !     DO y=ny/2,ny/2+1
@@ -89,34 +92,26 @@
     !     ENDDO
     !   ENDDO
 
-      cnt = 0
-      DO z=1,nz/4
-      DO y=1,ny/4
-      DO x=1,nx/4
-            r= x + (y-1)*nx + (z-1)*nx*ny
-            srcm(:,r,1,1, 1,1,1) = 12.0
-            cnt = cnt + 1
-          ENDDO
-        ENDDO
-      ENDDO
+    !   DO z=1,nz/4
+    !   DO y=1,ny/4
+    !   DO x=1,nx/4
+    !         r= x + (y-1)*nx + (z-1)*nx*ny
+    !         srcm(:,r,1,1, 1,1,1) = 12.0
+    !         cnt = cnt + 1
+    !       ENDDO
+    !     ENDDO
+    !   ENDDO
+    !   print *, "cnt", cnt
 
-      print *, "cnt", cnt
-
-        cnt = 0
-        DO z=3*nz/4+1, nz
-        DO y=1,ny/4
-        DO x=3*nx/4+1, nx
-              r= x + (y-1)*nx + (z-1)*nx*ny
-              srcm(:,r,1,1, 1,1,1) = 12.0
-              cnt = cnt +1
-            ENDDO
-          ENDDO
-       ENDDO
-       print *, "cnt", cnt
     !   print *,"av flux", aflx(:,:,1,1)
       
     !   CALL COFSGN(sgnc,sgni,sgne,sgnt,nc,nbd,ndim,2)
+
+      print *, ndir
+
+      CALL SNSETC(n,n,ityp,mu,eta,ksi,w)
       CALL SNQDLFT(ndir,nd,nani,ndim, nhrm, mu,eta,ksi,w,sphr)
+
 
       CALL MACRO_SWEEP3D(nn,ng,nr,nh,nc,nmat,
      &                          ncelx,ncely,ncelz,
@@ -132,7 +127,7 @@
      &                          dira,dirf,
      &                          lgki,
      &                          flxm,
-     &                          maxinner, tolinner)
+     &                          maxinner, tolinner, tolcor)
 
     !   print *,flxm(1,:,1,1)
 
@@ -140,12 +135,14 @@
       PRINT *, "Temps:", REAL(count_end - count_start)/count_rate,
      &                 " secondes"
 
+    
+      print*, SUM(flxm(1,:,1,1, 1,1,1), dim=1)/(nx*ny*nz)
 
-    !   DO x=1,ndir
-    !     print *,"bflx", SUM(bflx(x,1,:,2,1, 1,1,1), dim=1)/(ny*nz)
-    !     print *,"bfly", SUM(bfly(x,1,:,2,1, 1,1,1), dim=1)/(nx*nz)
-    !     print *,"bflz", SUM(bflz(x,1,:,2,1, 1,1,1), dim=1)/(nx*ny)
-    !   ENDDO
+      DO x=1,ndir
+        print *,"bflx", SUM(bflx(x,1,:,2,1, 1,1,1), dim=1)/(ny*nz)
+        print *,"bfly", SUM(bfly(x,1,:,2,1, 1,1,1), dim=1)/(nx*nz)
+        print *,"bflz", SUM(bflz(x,1,:,2,1, 1,1,1), dim=1)/(nx*ny)
+      ENDDO
 
 
     !   print *,"bflx", bflx(1,1,:,2,1, 1,1,1)

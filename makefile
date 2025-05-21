@@ -24,7 +24,8 @@ MODDIR  = moddir
 
 FFLAGS_DEBUG   = -O0 -Wall -fcheck=all -finit-real=snan -g -J$(MODDIR) -I$(MODDIR)
 FFLAGS_FAST    = -O2 -march=native -funroll-loops -Wall -J$(MODDIR) -I$(MODDIR)
-FFLAGS_CURRENT = $(FFLAGS_FAST)
+FFLAGS_CURRENT = $(FFLAGS_DEBUG)
+# FFLAGS_CURRENT = $(FFLAGS_FAST)
 
 # =========================
 # Règles

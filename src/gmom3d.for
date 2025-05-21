@@ -9,7 +9,6 @@
       INTEGER :: zreg(*)
       INTEGER :: a,c,r,h,k,m
 
-
       DO a=0,na
          DO r=1,nr
             m=zreg(r)

@@ -187,7 +187,6 @@
      &           +tcof(:,b,8)*finc(:,8)
      &           +tcof(:,b,9)*finc(:,9)
       ENDDO
-
    
 
       END SELECT

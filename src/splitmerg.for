@@ -10,7 +10,6 @@
       INTEGER, PARAMETER :: n8 = 8, nc = 4
       INTEGER, INTENT(IN) :: nn,ng,nr,ndir,
      &                imin,imax,jmin,jmax,kmin,kmax,nx,ny
-     
       INTEGER, INTENT(IN) :: zreg(nr)
       REAL(KIND=8), INTENT(IN)    :: w(ndir)
       REAL, INTENT(IN)    :: sigt(ng,*)
@@ -38,7 +37,7 @@
             DO x=imin,imax
                 DO d=1,ndir
                 r = ((z-1)*ny + (y-1))*nx + x 
-                flxoct(:,r) = flxoct(:,r) + 8.0*w(d)*aflx(:,d,r,1)
+                flxoct(:,r) = flxoct(:,r) + w(d)*aflx(:,d,r,1)
                 ENDDO
             ENDDO 
         ENDDO
@@ -47,6 +46,7 @@
       aux = 0.0D0
       auy = 0.0D0
       srchomo1 = 0.0D0
+      xsmoy = 0.0D0
 
       cnt = 1
       kcnt = kmin
@@ -84,11 +84,12 @@
          kcnt = k_half + 1
       ENDDO
      
-      xshom1(:,:) = aux(:,:)/auy(:,:)
       DO m=1,ng
         DO kk=1,n8
           IF (auy(m,kk) == 0.0D0) THEN
             xshom1(m,kk) = xsmoy(m,kk)/((itot+1)*(jtot+1)*(ktot+1))
+          ELSE 
+            xshom1(m,kk) = aux(m,kk)/auy(m,kk)
           ENDIF
         ENDDO
       ENDDO
@@ -128,6 +129,8 @@
         Dk = kmax - kmin + 1
 
         flxoct = 0.0
+
+
         DO z=kmin,kmax
           DO y=jmin,jmax
               DO x=imin,imax
@@ -166,10 +169,11 @@
           ENDDO
         ENDDO
 
-      xshom0= aux/auy
       DO m=1,ng
         IF (auy(m) == 0.0D0) THEN
           xshom0(m) = xsmoy(m)/(Di*Dj*Dk)
+        ELSE
+            xshom0(m) = aux(m)/auy(m)
         ENDIF
       ENDDO
 

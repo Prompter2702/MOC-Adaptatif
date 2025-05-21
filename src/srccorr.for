@@ -28,7 +28,7 @@
       
     !   CALL GAUSS_LU4(nquad,ndir, delt3, mu,eta, ksi, l4)
 
-      coeff(:) = (sigt(:)**2)/24
+      coeff(:) = (sigt(:)**2)/72
 
       DO d=1,ndir
         err(:,d) = ABS( srcm(:,d,2)*mu(d) )
@@ -36,6 +36,7 @@
      &           + ABS(srcm(:,d,4)*ksi(d) )
 
         err(:,d) = coeff(:)*err(:,d) * pdslu4(d)*(delt3(1)**5 )
+        ! err(:,d) = coeff(:)*err(:,d) * pdslu4(d)*(delt3(1)**3 )
       END DO
 
       END SUBROUTINE SRCCOR

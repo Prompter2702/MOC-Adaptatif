@@ -2,15 +2,12 @@
 
       !USE ERRORS
       USE FLGSNQ
-
       IMPLICIT REAL(KIND=8) (A-H,O-Z)
 
       REAL(KIND=8) , DIMENSION(*) :: mu,et,xi,wg
-
       REAL(KIND=8) , ALLOCATABLE , DIMENSION(:)  :: cdir,weig
       REAL(KIND=8) , PARAMETER  :: pio4 = 0.7853981633974483
       LOGICAL                   :: lgdb,lgpr
-
 
       lgdb=ityp.EQ.ChebyshevDoubleLegendre .OR.
      &     ityp.EQ.ChebyshevTimesDoubleLegendre

@@ -84,7 +84,9 @@
          kcnt = k_half + 1
       ENDDO
      
-      DO m=1,ng
+    !   xshom1 = xsmoy/((itot+1)*(jtot+1)*(ktot+1))    
+      
+        DO m=1,ng
         DO kk=1,n8
           IF (auy(m,kk) == 0.0D0) THEN
             xshom1(m,kk) = xsmoy(m,kk)/((itot+1)*(jtot+1)*(ktot+1))
@@ -169,6 +171,7 @@
           ENDDO
         ENDDO
 
+      ! xshom0 = xsmoy/(Di*Dj*Dk)
       DO m=1,ng
         IF (auy(m) == 0.0D0) THEN
           xshom0(m) = xsmoy(m)/(Di*Dj*Dk)
@@ -181,7 +184,7 @@
 
       END SUBROUTINE XSSRCHOMO0
 
-      SUBROUTINE MERGEBOUND0(nn,nb,
+      SUBROUTINE MERGEBOUND0(nn,nb, 
      &                      imin, imax,jmin,jmax,kmin,kmax,
      &                      nx,ny,nz,
      &                      bflx, bfly, bflz, finc0)

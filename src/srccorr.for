@@ -2,6 +2,7 @@
 
       IMPLICIT NONE
       PUBLIC :: SRCCOR
+      PUBLIC :: ERRSURF
     !   PRIVATE :: GAUSS_LU4
       CONTAINS
 
@@ -127,7 +128,80 @@
 
       err(:,:)= err(:,:)/1080 ! 1080 = 12*90
 
-
       END SUBROUTINE SRC2LVL
+
+      SUBROUTINE ERRSURF(nn, nx,ny,nz,
+     &                   imin,imax,jmin,jmax,kmin,kmax,
+     &                   flx0, bflx,bfly,bflz,tcof,errbnd)
+
+        IMPLICIT NONE
+
+        INTEGER,PARAMETER :: nbd = 9, nb = 3
+
+        INTEGER, INTENT(IN) :: nn,nx,ny,nz
+        INTEGER, INTENT(IN) :: imin, imax, jmin, jmax, kmin, kmax
+        REAL, INTENT(IN) :: flx0(nn,nb,nb)
+        REAL, INTENT(IN) :: bflx(nn,nb,ny,nz)
+        REAL, INTENT(IN) :: bfly(nn,nb,nx,nz)
+        REAL, INTENT(IN) :: bflz(nn,nb,nx,ny)
+
+        REAL, INTENT(IN) :: tcof(nn,nbd,nbd)   
+        REAL, INTENT(INOUT) :: errbnd(3)
+        REAL :: err(nn,nb), errfin(nn,nb)
+
+        INTEGER :: i,j,k,Di,Dj,Dk
+        Di = imax - imin + 1
+        Dj = jmax - jmin + 1
+        Dk = kmax - kmin + 1      
+   
+        err = 0.0
+          DO k=kmin, kmax
+          DO j=jmin, jmax
+            err(:,1) = err(:,1) + ABS(bflx(:,1,j,k) - flx0(:,1,1)
+     &           - 3.0*flx0(:,2,1)*(2*j-jmin-jmax)/Dj
+     &           - 3.0*flx0(:,3,1)*(2*k-kmin-kmax)/Dk)
+          ENDDO
+          ENDDO
+  
+          DO k=kmin, kmax
+          DO i=imin, imax
+            err(:,2) = err(:,2) + ABS(bfly(:,1,i,k) - flx0(:,1,2)
+     &           - 3.0*flx0(:,2,2)*(2.0*i-imax-imin)/Di
+     &           - 3.0*flx0(:,3,2)*(2.0*k-kmax-kmin)/Dk)
+          ENDDO
+          ENDDO
+
+          DO j=jmin, jmax
+          DO i=imin, imax
+            err(:,3) = err(:,3) + ABS(bflz(:,1,i,j) - flx0(:,1,3)
+     &           - 3.0*flx0(:,2,3)*(2*i-imax-imin)/Di
+     &           - 3.0*flx0(:,3,3)*(2*j-jmax-jmin)/Dj)
+          ENDDO
+          ENDDO
+
+        err(:,1) = err(:,1)/(Dj*Dk)
+        err(:,2) = err(:,2)/(Di*Dk)
+        err(:,3) = err(:,3)/(Di*Dj)
+
+        errfin = 0.0D0
+        
+        errfin(:,1) = tcof(:,1,1)*err(:,1)
+     &           +    tcof(:,1,4)*err(:,2)
+     &           +    tcof(:,1,7)*err(:,3)
+
+        errfin(:,2) = tcof(:,2,1)*err(:,1)
+     &           +    tcof(:,2,4)*err(:,2)
+     &           +    tcof(:,2,7)*err(:,3)
+
+        errfin(:,3) = tcof(:,3,1)*err(:,1)
+     &           +    tcof(:,3,4)*err(:,2)
+     &           +    tcof(:,3,7)*err(:,3)
+
+        ! errbnd = SUM(ABS(errfin))/(nn*3)
+        errbnd(1) = SUM( ABS(err(:,1)) )/nn
+        errbnd(2) = SUM( ABS(err(:,2)) )/nn
+        errbnd(3) = SUM( ABS(err(:,3)) )/nn
+
+      END SUBROUTINE ERRSURF
 
       END MODULE SRCCORR

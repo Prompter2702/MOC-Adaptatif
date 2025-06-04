@@ -35,7 +35,8 @@
        ! Delta on each direction of the region
      &                          delt3,
       ! max inner iterations and tolerance for inner iterations
-     &                          maxinner, tolinner, tolcor)
+     &                          maxinner, tolinner, tolcor,
+     &                          aflxmean)
 
       USE FLGOCT
       USE FLGBCD
@@ -63,6 +64,7 @@
       INTEGER, INTENT(IN) :: zreg(nr)
       REAL, INTENT(IN)    :: srcm(ng,nr,nh,nc)
       REAL, INTENT(INOUT) :: aflx(nn,nr,nc,noct)
+      REAL, INTENT(INOUT) :: aflxmean(nn,nr,noct)
 
       REAL    :: asrc(nn,nr,nc,noct)
       REAL    :: flxp(ng,nr,nh,nc)
@@ -93,8 +95,9 @@
       INTEGER , INTENT(IN) :: maxinner
       REAL, INTENT(IN) :: tolinner, tolcor
       REAL :: errinner, tmp
-      INTEGER :: cnt,g,r,j, nb_cell
-      REAL :: max_err_inner, tol_tmp
+      INTEGER :: cnt,g,r,j, nb_cell, a,b
+      REAL :: max_err_inner, tol_tmp, errtot
+      LOGICAL :: oksrc
 
       INTEGER :: posmax(4)
 
@@ -114,19 +117,7 @@
 !     Adds the contribution of selfscattering sources "sigs*flxp"
 !     to source moments "tmom"
       CALL GMOM3D(ng,nani,nh,nc,nr,sigs,flxp,srcm,zreg,sigg,tmom)
-      
-      ! Loop over octants of angular space in order defined by
-      ! octant list "olst3D", define the directional sources in asrc
-      ! from tmom and sphr
-    !   DO oc=1,8
-    !     oct=olst3D(oc)
-    !     da = (oct-1)*ndir+1
-    !   !        Directional source.
-    !     CALL GIRSRC(nhrm,ng,ndir,nr,nh,nc,sphr(1,da),
-    !  &               tmom(1,1,1,1),asrc(1,1,1,oct))
-    !     IF(lgki)CALL SPXPY(nr*nc,dsrc(1,1,1,oct),asrc(1,1,1,oct))
-    !   ENDDO
-
+    
       flxm = 0.0
 
       DO oc=1,8
@@ -207,10 +198,13 @@
      &                         ccof8,icof8,ecof8,tcof8,
      &                         tolinner,tolcor,
      &                         errcor,errmul,ok,delt3,ii,jj,kk,rr,
-     &                         nb_cell)
+     &                         nb_cell,a,b,oksrc,errtot,aflxmean)
 
       print *, xinc(oct), yinc(oct), zinc(oct)
       print *,"nb_cell", nb_cell
+
+      
+      CALL BCD2R2(oct,xout,yout,bflx,bfly,mu,eta,w,pisn,rdir)
 
 !  Compute the flux moments
       DO c=1,nc
@@ -276,7 +270,7 @@
      &                             fout0,fout1,ccof,icof,ecof,tcof,
      &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
      &                             errcor,errmul,ok,delt3,i,j,k,r,
-     &                             nb_cell)
+     &                             nb_cell,g,cnt,oksrc,errtot,aflxmean)
      
       USE SWEEP8ONE
       USE SRCCORR 
@@ -307,23 +301,26 @@
       REAL, INTENT(INOUT)  :: asrcm0(ng,ndir,nc), asrcm1(ng,ndir,nc,n8)
       REAL, INTENT(INOUT)  :: finc1(nn,nb,3,ns), fout1(nn,nb,3,ns)
       REAL, INTENT(INOUT)  :: finc0(nn,nb,3), fout0(nn,nb,3)
+      REAL, INTENT(INOUT)  :: aflxmean(nn,nr,n8)
+
 
       REAL, INTENT(INOUT)  :: ccof(nn,nc,nc),icof(nn,nc,nbd)
       REAL, INTENT(INOUT)  :: ecof(nn,nbd,nc),tcof(nn,nbd,nbd)
       REAL(KIND=8),INTENT(INOUT)  :: errcor(ng, ndir),errmul(ng, ndir)
       REAL, INTENT(IN)     :: ccof8(nn,nc,nc,n8),icof8(nn,nc,nbd,n8)
       REAL, INTENT(IN)     :: ecof8(nn,nbd,nc,n8),tcof8(nn,nbd,nbd,n8)
-      LOGICAL, INTENT(INOUT)  :: ok 
+      LOGICAL, INTENT(INOUT)  :: ok, oksrc
+      REAL, INTENT(INOUT)  :: errtot
       REAL, INTENT(IN)        :: delt3(3)
-      INTEGER, INTENT(INOUT)  :: i,j,k,r, nb_cell 
+      INTEGER, INTENT(INOUT)  :: i,j,k,r, nb_cell,g,cnt
+
+
+      !Variables locales 
 
       REAL :: asrcmtps(ng,ndir,nc,n8),xshomtps(ng,n8)
-    !   REAL :: fouttps(nn,nb,3,n8)
-      REAL :: errtot, errbound(3)
       REAL :: ccoftps(nn,nc,nc,n8),icoftps(nn,nc,nbd,n8)
       REAL :: ecoftps(nn,nbd,nc,n8),tcoftps(nn,nbd,nbd,n8)
-      LOGICAL :: oksrc
-      INTEGER :: cnt,g
+      
       
       fout1 = 0.0
 
@@ -333,8 +330,6 @@
       oksrc = .TRUE.
       errtot = 0.0
       cnt = 0
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
       group1 : DO g=1,ng
       DO i=kmin,kmax
@@ -351,20 +346,20 @@
       ENDDO group1
 
 
-      direc : DO  j = 1, ndir
       group : DO i = 1, ng
+      direc : DO j = 1, ndir
         cnt = cnt + 1
-        errtot = ABS(errcor(i,j)) 
+        errtot = ABS( errcor(i,j)) 
     !     IF ( errtot  > 3*epsilon(1.0) +
     !  &      tolcor*SUM( ABS(fout0(cnt,1,:)), DIM=1)/3  )THEN
     !         oksrc = .FALSE.
     !         EXIT direc
         IF ( errtot  > 3*epsilon(1.0) + tolcor*1.0  )THEN
             oksrc = .FALSE.
-            EXIT direc
+            EXIT group
         ENDIF
-      ENDDO group
-      ENDDO direc
+        ENDDO direc
+        ENDDO group
 
 
       IF(imax-imin>0 .AND. jmax-jmin>0 
@@ -440,6 +435,18 @@
      &                   imin, imax,jmin,jmax,kmin,kmax,
      &                   nx,ny,nz,
      &                   bflx, bfly, bflz, fout0)
+        
+         !!!Aflxmean
+         DO i=kmin,kmax
+         DO j= jmin,jmax
+         DO k= imin,imax
+            r = ((i-1)*ny + (j-1))*nx + k 
+            aflxmean(:,r,oct) = aflx0(:,1)
+         ENDDO
+         ENDDO
+         ENDDO
+
+
           nb_cell = nb_cell + 1
           RETURN
 
@@ -535,7 +542,7 @@
      &                             ecoftps(:,:,:,1),tcoftps(:,:,:,1),
      &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
      &                             errcor,errmul,ok,delt3,i,j,k,r,
-     &                             nb_cell)
+     &                             nb_cell,g,cnt,oksrc,errtot,aflxmean)
       
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
      &                             nx,ny, nz,
@@ -560,7 +567,7 @@
      &                             ecoftps(:,:,:,2),tcoftps(:,:,:,2),
      &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
      &                             errcor,errmul,ok,delt3,i,j,k,r, 
-     &                             nb_cell)
+     &                             nb_cell,g,cnt,oksrc,errtot,aflxmean)
 
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
      &                             nx,ny, nz,
@@ -585,7 +592,7 @@
      &                             ecoftps(:,:,:,3),tcoftps(:,:,:,3),
      &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
      &                             errcor,errmul,ok,delt3,i,j,k,r, 
-     &                             nb_cell)
+     &                             nb_cell,g,cnt,oksrc,errtot,aflxmean)
         
       CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
      &                             nx,ny, nz,
@@ -610,7 +617,7 @@
      &                             ecoftps(:,:,:,4),tcoftps(:,:,:,4),
      &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
      &                             errcor,errmul,ok,delt3,i,j,k,r, 
-     &                             nb_cell)
+     &                             nb_cell,g,cnt,oksrc,errtot,aflxmean)
 
 !-----------------------------------------------------------------------
 
@@ -637,7 +644,7 @@
      &                             ecoftps(:,:,:,5),tcoftps(:,:,:,5),
      &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
      &                             errcor,errmul,ok,delt3,i,j,k,r, 
-     &                             nb_cell)
+     &                             nb_cell,g,cnt,oksrc,errtot,aflxmean)
 
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
      &                             nx,ny, nz,
@@ -662,7 +669,7 @@
      &                             ecoftps(:,:,:,6),tcoftps(:,:,:,6),
      &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
      &                             errcor,errmul,ok,delt3,i,j,k,r,   
-     &                             nb_cell)
+     &                             nb_cell,g,cnt,oksrc,errtot,aflxmean)
 
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
      &                             nx,ny, nz,
@@ -687,7 +694,7 @@
      &                             ecoftps(:,:,:,7),tcoftps(:,:,:,7),
      &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
      &                             errcor,errmul,ok,delt3,i,j,k,r,        
-     &                             nb_cell)
+     &                             nb_cell,g,cnt,oksrc,errtot,aflxmean)
 
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
      &                             nx,ny, nz,
@@ -712,7 +719,7 @@
      &                             ecoftps(:,:,:,8),tcoftps(:,:,:,8),
      &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
      &                             errcor,errmul,ok,delt3,i,j,k,r,        
-     &                             nb_cell)
+     &                             nb_cell,g,cnt,oksrc,errtot,aflxmean)
     !- write the outgoing angular flux of node-0 on the fine-mesh
     ! boundary flux
          RETURN
@@ -722,6 +729,10 @@
             CALL SPLITAFLX1(nn,nr,nc,nx,ny,nz,
      &                      imin,imax,jmin,jmax,kmin,kmax,
      &                      aflx,aflx1)
+
+            CALL PROJMEAN1(nn,nr,nc,nx,ny,nz,
+     &                     imin,imax,jmin,jmax,kmin,kmax,
+     &                     aflxmean, aflx1)
 
             CALL SPLITBOUND1(nn,ng,nb,
      &                      imin, imax,jmin,jmax,kmin,kmax,

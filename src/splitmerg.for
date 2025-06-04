@@ -99,6 +99,56 @@
 
       END SUBROUTINE XSSRCHOMO1
 
+!----------------------------------------------------------------------
+
+      SUBROUTINE PROJMEAN1(nn,nr,nx,ny,nz,
+     &                      imin,imax,jmin,jmax,kmin,kmax,
+     &                      aflxmean, aflx1)
+
+      IMPLICIT NONE
+        
+      INTEGER, PARAMETER :: nc = 4
+      INTEGER, INTENT(IN) :: nn,nr,imin,imax,jmin,jmax,kmin,kmax
+      INTEGER, INTENT(IN) :: nx,ny,nz
+
+      REAL, INTENT(INOUT) :: aflx1(nn,nc,8), aflxmean(nn,nr)
+
+      INTEGER :: kk,jj,ii,cnt,icnt,jcnt,kcnt,x,y,z,r,
+     &           i_half,j_half,k_half,itot,ktot,jtot
+
+      i_half = (imin+imax)/2
+      itot   = (imax-imin)/2
+      j_half = (jmin+jmax)/2
+      jtot   = (jmax-jmin)/2
+      k_half = (kmin+kmax)/2
+      ktot   = (kmax-kmin)/2
+     
+      cnt = 1
+      kcnt = kmin
+      DO kk =0,1
+      jcnt =jmin
+      DO jj =0,1 
+        icnt = imin
+        DO ii =0,1 
+            DO z= kcnt, kcnt+ktot
+            DO y= jcnt, jcnt+jtot
+            DO x= icnt, icnt+itot
+                r = ((z-1)*ny + (y-1))*nx + x 
+                aflxmean(:,r) = aflx1(:,1,cnt)    
+            ENDDO
+            ENDDO
+            ENDDO
+            cnt = cnt + 1 
+            icnt = i_half + 1
+            ENDDO
+        jcnt = j_half + 1
+        ENDDO
+        kcnt = k_half + 1
+      ENDDO
+
+
+      END SUBROUTINE PROJMEAN1
+
 !----------------------------------------
 
       SUBROUTINE XSSRCHOMO0(nn,ng,nr,nx,ny, ndir,

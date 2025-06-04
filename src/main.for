@@ -9,6 +9,7 @@
       USE SWEEP8ONE
       USE FLGINC
       USE SRCCORR
+    !   USE FLXCOM
 
       IMPLICIT NONE
 
@@ -28,7 +29,7 @@
       INTEGER, PARAMETER :: nmat = 2
       INTEGER, PARAMETER :: maxinner = 80
       REAL, PARAMETER    :: tolinner = 1.0e-4
-      REAL, PARAMETER    :: tolcor   = 1.0e-4
+      REAL, PARAMETER    :: tolcor   = 1.0e-5
     !   REAL, PARAMETER    :: tolcor   = -1.0
 ! Nombre de milieux
 
@@ -54,8 +55,10 @@
       LOGICAL :: lgki =.FALSE.
       REAL    :: delt3(3)
 
+      REAL    :: aflxmean(nn,nr,noct), flxmean(ng,nr)
+
       INTEGER :: count_start, count_end, count_rate
-      INTEGER :: x,y,z,r,oct,cnt
+      INTEGER :: x,y,z,r,oct,cnt, d,fst,da
       CHARACTER(LEN=20) :: name
 
       REAL :: fout0(nn,nb,3)
@@ -70,7 +73,7 @@
       ! Change nmat according to the number of materials
       ! Definition of the cross sections
       sigt(:,1)   = 1.0
-      sigs(:,0,1) = 0.3
+      sigs(:,0,1) = 0.7
       sigt(:,2)   = 20.0
       sigs(:,0,2) = 0.0
       
@@ -110,6 +113,8 @@
     !         ENDDO
     !     ENDDO
     !   ENDDO
+
+    !   typc = Vacuum
       
       ! Creation of the signe matrices
       CALL COFSGN(sgnc,sgni,sgne,sgnt,nc,nbd,ndim,2)
@@ -136,7 +141,7 @@
      &                          dira,dirf,
      &                          lgki,
      &                          flxm,delt3,
-     &                          maxinner, tolinner, tolcor)
+     &                          maxinner, tolinner, tolcor, aflxmean)
 
 
 
@@ -146,9 +151,26 @@
 
 
       ! Affichage des résultats
+
+      print *, mu, eta, ksi
+
     
       ! Total mean
-      print*, SUM(flxm(1,:,1,1), dim=1)/nr
+      print*,"Moyenne flux", SUM(flxm(1,:,1,1), dim=1)/nr
+
+      flxmean = 0.0
+      DO oct=1,noct
+        fst = 0
+        da = (oct-1)*ndir+1
+        DO d=1,ndir
+            flxmean(:ng,:nr) = flxmean(:ng,:nr) +
+     &          (sphr(1,da+d-1)*w(d))*aflxmean(fst+1:fst+ng,:nr,oct)
+            fst = fst + ng
+        ENDDO
+      ENDDO 
+
+
+      print *,"Moyenne flux bis", SUM(flxmean(1,:), dim=1)/nr
 
       DO x=1,ndir
         print *,"bflx", SUM(bflx(x,1,:,2,1), dim=1)/nbfx
@@ -159,12 +181,19 @@
 
       ! Enregistrement des résultats dans un fichier VTK
 
-      WRITE(name, '(A,I0,A,I0,A,I0,A)') "flx_mean_volu.vtk"
+      WRITE(name, '(A,I0,A,I0,A,I0,A)') "flx_vol.vtk"
       CALL VOLVTK(nx,ny,nz,
      &            .TRUE.,.TRUE.,.TRUE.,
      &            0.0,0.0,0.0,                     
      &            (/delt, delt, delt/),
      &            flxm(1,:,1,1),name)
+
+      WRITE(name, '(A,I0,A,I0,A,I0,A)') "flx_mean_vol.vtk"
+      CALL VOLVTK(nx,ny,nz,
+     &            .TRUE.,.TRUE.,.TRUE.,
+     &            0.0,0.0,0.0,                     
+     &            (/delt, delt, delt/),
+     &            flxmean(1,:),name)
 
 
       print *, 'FIN'

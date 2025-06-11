@@ -4,71 +4,119 @@
 !     "nbd"   is a dimension of the coefficient matrices nb*nd
 
       PROGRAM SWEEP_ADAPTATIV
-
       USE SNQHRM
       USE SWEEP8ONE
       USE FLGINC
       USE SRCCORR
-    !   USE FLXCOM
+      USE FLXCOM
 
       IMPLICIT NONE
 
-      INTEGER, PARAMETER :: n = 2  ! Formule triangle
+      INTEGER, PARAMETER :: n = 16 ! Formule triangle
       INTEGER, PARAMETER :: ityp = 4 ! ChebyshevDoubleLegendre
-      INTEGER, PARAMETER :: ng = 1, ndir =(n/2)*((n/2)+1)/2, ndim = 3
-      INTEGER, PARAMETER :: nn = ndir*ng
-      INTEGER, PARAMETER :: nc=4, nb=3, nd = ndir*8
-      INTEGER, PARAMETER :: nbd = nb*ndim
-      INTEGER, PARAMETER :: nx = 16
-      INTEGER, PARAMETER :: ny = 16
-      INTEGER, PARAMETER :: nz = 16
-      INTEGER, PARAMETER :: nbfx = ny*nz,nbfy=nx*nz,nbfz=nx*ny
-      INTEGER, PARAMETER :: nani=0,nhrm=1 
-      INTEGER, PARAMETER :: nr = nx*ny*nz , nh = 1
+      REAL, PARAMETER    :: tolinner = 1.0e-4
+      REAL, PARAMETER    :: tolcor   = 1.0e-4
+    !   REAL, PARAMETER    :: tolcor   = -1.0
       REAL, PARAMETER    :: delt = 1.0
       INTEGER, PARAMETER :: nmat = 2
-      INTEGER, PARAMETER :: maxinner = 80
-      REAL, PARAMETER    :: tolinner = 1.0e-4
-      REAL, PARAMETER    :: tolcor   = 1.0e-5
-    !   REAL, PARAMETER    :: tolcor   = -1.0
-! Nombre de milieux
+      INTEGER, PARAMETER :: maxinner = 100
+      INTEGER, PARAMETER :: n8=8, ns=4
+      INTEGER            :: nn
+      
 
-      INTEGER, PARAMETER :: noct = 8
+      REAL(KIND=8), ALLOCATABLE :: mu(:),eta(:),ksi(:),w(:)
 
-      REAL    :: flxm(ng,nr,nh,nc)
-      REAL    :: bflx(nn,nb,nbfx,2,noct),
-     &           bfly(nn,nb,nbfy,2,noct),
-     &           bflz(nn,nb,nbfz,2,noct)
-      REAL    :: sigt(ng, nmat), sigs(ng,0:nani,nmat)
-      REAL(KIND=8) :: mu(ndir),eta(ndir),ksi(ndir),w(ndir),pisn
-      REAL    :: sphr(nhrm,nd)
-      INTEGER :: sgnc(nc,nc,noct),sgni(nc,nbd,noct)
-      INTEGER :: sgne(nc,nbd,noct),sgnt(nbd,nbd,noct)
-      INTEGER :: zreg(nr)
-      REAL    :: aflx(nn,nr,nc,noct)
-      REAL    :: dsrc(nn,nr,nc,noct)
-      REAL    :: finc(nn,nbd),fout(nn,nbd)
-      REAL    :: flxp(ng,nr,nh,nc),srcm(ng,nr,nh,nc ),
-     &          tmom(ng,nr,nh,nc)
-      REAL    :: sigg(ng,nr)
-      INTEGER :: rdir(nd),dira(nr),dirf(nr)
-      LOGICAL :: lgki =.FALSE.
+      REAL,    ALLOCATABLE :: flxm(:,:,:,:,:)
+      REAL,    ALLOCATABLE :: bflx(:,:,:,:,:),
+     &                        bfly(:,:,:,:,:),
+     &                        bflz(:,:,:,:,:)
+      REAL,    ALLOCATABLE :: sigt(:,:), sigs(:,:,:)
+      REAL,    ALLOCATABLE :: sphr(:,:)
+      INTEGER, ALLOCATABLE :: sgnc(:,:,:),sgni(:,:,:)
+      INTEGER, ALLOCATABLE :: sgne(:,:,:),sgnt(:,:,:)
+      INTEGER, ALLOCATABLE :: zreg(:)
+      REAL,    ALLOCATABLE :: aflx(:,:,:,:)
+      REAL,    ALLOCATABLE :: dsrc(:,:,:,:)
+      REAL,    ALLOCATABLE :: finc(:,:),fout(:,:)
+      REAL,    ALLOCATABLE :: flxp(:,:,:,:),srcm(:,:,:,:),tmom(:,:,:,:)
+      REAL,    ALLOCATABLE :: sigg(:,:)
+      INTEGER, ALLOCATABLE :: rdir(:,:),dira(:),dirf(:)
+      REAL,    ALLOCATABLE :: aflxmean(:,:,:), flxmean(:,:)
+      REAL,    ALLOCATABLE :: tcof(:,:,:)
+
+      REAL, ALLOCATABLE    :: asrc(:,:,:,:)
+      REAL, ALLOCATABLE    :: pdslu4(:)
+      REAL, ALLOCATABLE    :: aflx0(:,:), aflx1(:,:,:)
+      REAL, ALLOCATABLE    :: xshom0(:), xshom1(:,:)
+      REAL, ALLOCATABLE    :: asrcm0(:,:,:), asrcm1(:,:,:,:)
+      REAL, ALLOCATABLE    :: finc1(:,:,:,:), fout1(:,:,:,:)
+      REAL, ALLOCATABLE    :: finc0(:,:,:), fout0(:,:,:)
+
+      REAL    :: pisn
       REAL    :: delt3(3)
-
-      REAL    :: aflxmean(nn,nr,noct), flxmean(ng,nr)
-
       INTEGER :: count_start, count_end, count_rate
-      INTEGER :: x,y,z,r,oct,cnt, d,fst,da
+      INTEGER :: x,y,z,r,oct, d,fst,da
       CHARACTER(LEN=20) :: name
+      INTEGER :: lasta
 
-      REAL :: fout0(nn,nb,3)
-      REAL :: errbnd
-      REAL :: tcof(ng,nbd,nbd)
+    
+      !Variables à partir des paramètres
+      ng = 1
+      nc = 4
+      nb = 3
+      ndim = 3
+      nx = 16
+      ny = 16
+      nz = 16
+      nani=0
+      nhrm=1 
+      nh = 1
+
+      nbfx = ny*nz
+      nbfy = nx*nz
+      nbfz = nx*ny
+      nbf = (/nbfx,nbfy,nbfz/)
+      nr = nx*ny*nz
+      ndir = (n/2)*((n/2)+1)/2
+      nd = ndir*8
+      nn = ndir*ng  
+      nbd = nb*ndim
+      noct = 2**ndim
+      lgki =.FALSE.
+
+      ! ALLOCATION DES TABLEAUX
+      ALLOCATE(flxm(ng,nr,nh,nc,2))
+      ALLOCATE(bflx(nn,nb,nbfx,2,noct))
+      ALLOCATE(bfly(nn,nb,nbfy,2,noct))
+      ALLOCATE(bflz(nn,nb,nbfz,2,noct))
+      ALLOCATE(sigt(ng, nmat), sigs(ng,0:nani,nmat))
+      ALLOCATE(sphr(nhrm,nd))
+      ALLOCATE(mu(ndir),eta(ndir),ksi(ndir),w(ndir))
+      ALLOCATE(sgnc(nc,nc,noct),sgni(nc,nbd,noct))
+      ALLOCATE(sgne(nc,nbd,noct),sgnt(nbd,nbd,noct))
+      ALLOCATE(zreg(nr))
+      ALLOCATE(aflx(nn,nr,nc,noct))
+      ALLOCATE(dsrc(nn,nr,nc,noct))
+      ALLOCATE(finc(nn,nbd),fout(nn,nbd))
+      ALLOCATE(flxp(ng,nr,nh,nc),srcm(ng,nr,nh,nc),tmom(ng,nr,nh,nc))
+      ALLOCATE(sigg(ng,nr))
+      ALLOCATE(rdir(nd,3))
+      ALLOCATE(dira(nr),dirf(nr))
+      ALLOCATE(aflxmean(nn,nr,noct), flxmean(ng,nr))
+      ALLOCATE(tcof(ng,nbd,nbd))
+      ALLOCATE(asrc(nn,nr,nc,noct))
+      ALLOCATE(pdslu4(ndir))
+      ALLOCATE(aflx0(nn,nc), aflx1(nn,nc,n8))
+      ALLOCATE(xshom0(ng), xshom1(ng,n8))
+      ALLOCATE(asrcm0(ng,ndir,nc), asrcm1(ng,ndir,nc,n8))
+      ALLOCATE(finc1(nn,nb,3,ns), fout1(nn,nb,3,ns))
+      ALLOCATE(finc0(nn,nb,3), fout0(nn,nb,3))
 
 
       CALL SYSTEM_CLOCK(count_start, count_rate)  ! Capture début
   
       delt3 = (/delt, delt, delt/)
+      lasta = 2
 
       ! Change nmat according to the number of materials
       ! Definition of the cross sections
@@ -81,6 +129,7 @@
 
       ! Geometry settings
       zreg = 1
+
       DO z = 7,8
       DO y = 7,8
       DO x = 7,8
@@ -90,7 +139,7 @@
       ENDDO
       ENDDO
 
-      ! Boundary conditions
+      ! Initials Boundary conditions
       bflx = 0.0
       bfly = 0.0
       bflz = 0.0
@@ -104,18 +153,22 @@
 
       ! Definition of the external source term
       srcm = 0.0
-    !   srcm(:,:,1,1) = 1.0
-    !   DO z=2,3
-    !     DO y=2,3
-    !         DO x=2,3
-    !             r= x + (y-1)*nx + (z-1)*nx*ny
-    !             srcm(:,r,1,1) = 5.0
-    !         ENDDO
-    !     ENDDO
-    !   ENDDO
+      DO z=2,7
+      DO y=2,7
+      DO x=2,7
+        r= x + (y-1)*nx + (z-1)*nx*ny
+        srcm(:,r,1,1) = 5.0
+      ENDDO
+      ENDDO
+      ENDDO
 
-    !   typc = Vacuum
-      
+        
+      DO oct=1,noct
+        da = (oct-1)*ndir+1
+        print *,"oct", oct
+        print *, xinc(oct), yinc(oct), zinc(oct)
+      ENDDO
+
       ! Creation of the signe matrices
       CALL COFSGN(sgnc,sgni,sgne,sgnt,nc,nbd,ndim,2)
       ! Creation of the angular quadrature
@@ -124,25 +177,29 @@
       ! Creating the spherical harmonics
       CALL SNQDLFT(ndir,nd,nani,ndim, nhrm, mu,eta,ksi,w,sphr)
 
-
       ! Main function that do the total flux calculation
       CALL SWEE3D_ADAPTIVE(nn,ng,nr,nh,nc,nmat,
      &                          nb,nbd,nbfx,nbfy,nbfz,
      &                          nx,ny,nz, 
      &                          nani,nhrm,nd,ndir,
-     &                          sigt,sigs,srcm,
+     &                          sigt,sigs,srcm,asrc,
      &                          bflx,bfly,bflz,
      &                          mu,eta,ksi,w,pisn,sphr,
      &                          sgnc,sgni,sgne,sgnt,
-     &                          sigg,
+     &                          sigg,tmom,
      &                          dsrc,aflx,
      &                          rdir,
      &                          zreg, 
      &                          dira,dirf,
      &                          lgki,
      &                          flxm,delt3,
-     &                          maxinner, tolinner, tolcor, aflxmean)
-
+     &                          maxinner, tolinner, tolcor, aflxmean,
+     &                          pdslu4, lasta,
+     &                          aflx0, aflx1,
+     &                          xshom0, xshom1,
+     &                          asrcm0, asrcm1,
+     &                          finc1, fout1,
+     &                          finc0, fout0)
 
 
       CALL SYSTEM_CLOCK(count_end, count_rate)    ! Capture fin
@@ -152,11 +209,9 @@
 
       ! Affichage des résultats
 
-      print *, mu, eta, ksi
-
-    
       ! Total mean
-      print*,"Moyenne flux", SUM(flxm(1,:,1,1), dim=1)/nr
+      print*,"Moyenne flux", SUM(flxm(1,:,1,1,lasta), dim=1)/nr
+
 
       flxmean = 0.0
       DO oct=1,noct
@@ -169,16 +224,6 @@
         ENDDO
       ENDDO 
 
-
-      print *,"Moyenne flux bis", SUM(flxmean(1,:), dim=1)/nr
-
-      DO x=1,ndir
-        print *,"bflx", SUM(bflx(x,1,:,2,1), dim=1)/nbfx
-        print *,"bfly", SUM(bfly(x,1,:,2,1), dim=1)/nbfy
-        print *,"bflz", SUM(bflz(x,1,:,2,1), dim=1)/nbfz
-      ENDDO
-
-
       ! Enregistrement des résultats dans un fichier VTK
 
       WRITE(name, '(A,I0,A,I0,A,I0,A)') "flx_vol.vtk"
@@ -186,7 +231,7 @@
      &            .TRUE.,.TRUE.,.TRUE.,
      &            0.0,0.0,0.0,                     
      &            (/delt, delt, delt/),
-     &            flxm(1,:,1,1),name)
+     &            flxm(1,:,1,1,lasta),name)
 
       WRITE(name, '(A,I0,A,I0,A,I0,A)') "flx_mean_vol.vtk"
       CALL VOLVTK(nx,ny,nz,
@@ -196,6 +241,39 @@
      &            flxmean(1,:),name)
 
 
+
       print *, 'FIN'
     !  
       END PROGRAM
+
+
+          !   typc = 5 ! SpecularReflection
+    !   DO d=1,ndir
+    !     ! Directions des reflexions sur une face x
+    !     rdir((1-1)*ndir + d,1) = (2-1)*ndir + d
+    !     rdir((2-1)*ndir + d,1) = (1-1)*ndir + d
+    !     rdir((3-1)*ndir + d,1) = (4-1)*ndir + d
+    !     rdir((4-1)*ndir + d,1) = (3-1)*ndir + d
+    !     rdir((5-1)*ndir + d,1) = (6-1)*ndir + d
+    !     rdir((6-1)*ndir + d,1) = (5-1)*ndir + d
+    !     rdir((7-1)*ndir + d,1) = (8-1)*ndir + d
+    !     rdir((8-1)*ndir + d,1) = (7-1)*ndir + d
+    !     ! Directions des reflexions sur une face y
+    !     rdir((1-1)*ndir + d,2) = (4-1)*ndir + d
+    !     rdir((4-1)*ndir + d,2) = (1-1)*ndir + d
+    !     rdir((2-1)*ndir + d,2) = (3-1)*ndir + d
+    !     rdir((3-1)*ndir + d,2) = (2-1)*ndir + d
+    !     rdir((5-1)*ndir + d,2) = (8-1)*ndir + d
+    !     rdir((8-1)*ndir + d,2) = (5-1)*ndir + d
+    !     rdir((6-1)*ndir + d,2) = (7-1)*ndir + d
+    !     rdir((7-1)*ndir + d,2) = (6-1)*ndir + d
+    !     ! Directions des reflexions sur une face z
+    !     rdir((1-1)*ndir + d,3) = (5-1)*ndir + d
+    !     rdir((5-1)*ndir + d,3) = (1-1)*ndir + d
+    !     rdir((2-1)*ndir + d,3) = (6-1)*ndir + d
+    !     rdir((6-1)*ndir + d,3) = (2-1)*ndir + d
+    !     rdir((3-1)*ndir + d,3) = (7-1)*ndir + d
+    !     rdir((7-1)*ndir + d,3) = (3-1)*ndir + d
+    !     rdir((4-1)*ndir + d,3) = (8-1)*ndir + d
+    !     rdir((8-1)*ndir + d,3) = (4-1)*ndir + d
+    !   ENDDO

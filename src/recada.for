@@ -1,4 +1,4 @@
-       SUBROUTINE SWEE3D_ADAPTIVE(
+      SUBROUTINE SWEE3D_ADAPTIVE(
        ! inputs: dimensions 
      &                          nn,ng,nr,nh,nc,nmat,
      &                          nb,nbd,nbfx,nbfy,nbfz,
@@ -7,8 +7,7 @@
        ! inputs: cross section  
      &                          sigt,sigs,
        ! inputs: source and flux moments at previous iteration 
-    !  &                          flxp,srcm,
-     &                          srcm,
+     &                          srcm,asrc,
        ! input/output: boundary flux 
      &                          bflx,bfly,bflz,
        ! input: angular quadrature & spherical harmonics
@@ -17,7 +16,7 @@
      &                          sgnc,sgni,sgne,sgnt,
        ! input: auxiliar memory for boundary angular fluxes, angular 
        ! source moments and self-scattering xs 
-     &                          sigg, !tmom,
+     &                          sigg, tmom,
        ! input: auxiliar memory angular flux & source 
      &                          dsrc, aflx,
        ! input: auxiliar memory to drive angular mirror-reflection 
@@ -36,8 +35,14 @@
      &                          delt3,
       ! max inner iterations and tolerance for inner iterations
      &                          maxinner, tolinner, tolcor,
-     &                          aflxmean)
-
+     &                          aflxmean, pdslu4, finalnewa,
+      ! auxiliary arrays
+     &                          aflx0, aflx1,
+     &                          xshom0, xshom1,
+     &                          asrcm0, asrcm1,
+     &                          finc1, fout1,
+     &                          finc0, fout0)
+   
       USE FLGOCT
       USE FLGBCD
       USE FLGINC
@@ -45,13 +50,13 @@
       USE SRCCORR
       
       IMPLICIT NONE
-
+   
       INTEGER, PARAMETER :: noct = 8, n8=8, ns=4
       
       INTEGER, INTENT(IN) :: nn,ng,nr,nh,nc,nx,ny,nz,nmat
       INTEGER, INTENT(IN) :: nb,nbd,nbfx,nbfy,nbfz
       INTEGER, INTENT(IN) :: nani,nhrm,nd,ndir
-      REAL, INTENT(INOUT) :: flxm(ng,nr,nh,nc)
+      REAL, INTENT(INOUT) :: flxm(ng,nr,nh,nc,2)
       REAL, INTENT(INOUT) :: bflx(nn,nb,nbfx,2,noct),
      &                       bfly(nn,nb,nbfy,2,noct),
      &                       bflz(nn,nb,nbfz,2,noct)
@@ -65,26 +70,26 @@
       REAL, INTENT(IN)    :: srcm(ng,nr,nh,nc)
       REAL, INTENT(INOUT) :: aflx(nn,nr,nc,noct)
       REAL, INTENT(INOUT) :: aflxmean(nn,nr,noct)
-
-      REAL    :: asrc(nn,nr,nc,noct)
-      REAL    :: flxp(ng,nr,nh,nc)
-      REAL    :: dsrc(nn,nr,nc,*)
-      REAL    :: tmom(ng,nr,nh,nc)
-      REAL    :: sigg(ng,nr)
-      INTEGER :: rdir(nd,*),dira(*),dirf(*)
-      LOGICAL :: lgki
+   
+      REAL, INTENT(INOUT)    :: asrc(nn,nr,nc,noct)
+      REAL, INTENT(INOUT)    :: dsrc(nn,nr,nc,*)
+      REAL, INTENT(INOUT)    :: tmom(ng,nr,nh,nc)
+      REAL, INTENT(INOUT)    :: sigg(ng,nr) 
+   
+      INTEGER, INTENT(INOUT) :: rdir(nd,*),dira(*),dirf(*)
       REAL, INTENT(IN)     :: delt3(3)
-      REAL(KIND=8) :: pdslu4(ndir) ! pds to compute src 4 \int(L^4)
-
+      LOGICAL, INTENT(IN) :: lgki
+      REAL(KIND=8), INTENT(INOUT) :: pdslu4(ndir) ! pds to compute src 4 \int(L^4)
+   
       INTEGER :: xout,yout,zout,fst
-      INTEGER :: oc,oct,d,dd,da,c,h,i
-
-      REAL  :: aflx0(nn,nc), aflx1(nn,nc,n8)
-      REAL  :: xshom0(ng), xshom1(ng,n8)
-      REAL  :: asrcm0(ng,ndir,nc), asrcm1(ng,ndir,nc,n8)
-      REAL  :: finc1(nn,nb,3,ns), fout1(nn,nb,3,ns)
-      REAL  :: finc0(nn,nb,3), fout0(nn,nb,3)
-
+      INTEGER :: oc,oct,d,da,c,h
+   
+      REAL, INTENT(INOUT)  :: aflx0(nn,nc), aflx1(nn,nc,n8)
+      REAL, INTENT(INOUT)  :: xshom0(ng), xshom1(ng,n8)
+      REAL, INTENT(INOUT)  :: asrcm0(ng,ndir,nc), asrcm1(ng,ndir,nc,n8)
+      REAL, INTENT(INOUT)  :: finc1(nn,nb,3,ns), fout1(nn,nb,3,ns)
+      REAL, INTENT(INOUT)  :: finc0(nn,nb,3), fout0(nn,nb,3)
+   
       REAL  :: ccof(nn,nc,nc),icof(nn,nc,nbd)
       REAL  :: ecof(nn,nbd,nc),tcof(nn,nbd,nbd)
       REAL(KIND=8)  :: errcor(ng, ndir),errmul(ng, ndir)
@@ -94,78 +99,85 @@
       INTEGER  :: ii,jj,kk,rr 
       INTEGER , INTENT(IN) :: maxinner
       REAL, INTENT(IN) :: tolinner, tolcor
-      REAL :: errinner, tmp
-      INTEGER :: cnt,g,r,j, nb_cell, a,b
+      REAL :: errinner
+      INTEGER :: cnt,g,r,nb_cell,a,b,inew,iold
       REAL :: max_err_inner, tol_tmp, errtot
       LOGICAL :: oksrc
-
-      INTEGER :: posmax(4)
-
+      INTEGER :: addrflx(2)
+      INTEGER, PARAMETER :: olda=1, newa=2
+      INTEGER, INTENT(INOUT) :: finalnewa
+      REAL :: errbnd(3)
+   
       cnt = 0
-      flxp = flxm
+      addrflx = (/olda, newa/)
+      
+    !   flxp = flxm
       okinner = .FALSE.
-
+   
       ! Initialization of the coefficients to compute the 
       ! srccor error
       CALL GAUSS_LU4(100,ndir,(/1.0, 1.0, 1.0/), mu,eta,ksi, pdslu4)
-
-
+   
+   
       ! Internal iterations loop
       DO WHILE (.NOT. okinner .AND. cnt<maxinner)
       cnt = cnt + 1
-
-!     Adds the contribution of selfscattering sources "sigs*flxp"
-!     to source moments "tmom"
-      CALL GMOM3D(ng,nani,nh,nc,nr,sigs,flxp,srcm,zreg,sigg,tmom)
+      inew = addrflx(newa)
+      iold = addrflx(olda)
+   
+   !     Adds the contribution of selfscattering sources "sigs*flxp"
+   !     to source moments "tmom"
+      CALL GMOM3D(ng,nani,nh,nc,nr,sigs,flxm(1,1,1,1,iold),
+     &            srcm,zreg,sigg,tmom)
     
-      flxm = 0.0
-
+      flxm(:,:,:,:,inew) = 0.0
+   
       DO oc=1,8
         ! Loop over octants of angular space in order defined by
         ! octant list "olst3D",
         oct=olst3D(oc)
-
-!       Sweep for all directions in octant "oct".
-!       initial direction of the octant 
+   
+   !       Sweep for all directions in octant "oct".
+   !       initial direction of the octant 
         da = (oct-1)*ndir+1
-
-!       Define the directional sources in asrc from tmom and sphr
-
+   
+   !       Define the directional sources in asrc from tmom and sphr
+   
         CALL GIRSRC(nhrm,ng,ndir,nr,nh,nc,sphr(1,da),
      &               tmom(1,1,1,1),asrc(1,1,1,oct))
         IF(lgki)CALL SPXPY(nr*nc,dsrc(1,1,1,oct),asrc(1,1,1,oct))
         
-!        Index of outgoing side.
+   !        Index of outgoing side.
          xout=3-xinc(oct)
          yout=3-yinc(oct)
          zout=3-zinc(oct)
-
+   
          bflx(:,:,:,xout,oct) = bflx(:,:,:,xinc(oct),oct)
          bfly(:,:,:,yout,oct) = bfly(:,:,:,yinc(oct),oct)
          bflz(:,:,:,zout,oct) = bflz(:,:,:,zinc(oct),oct)
          
-!        Sweep for all directions in octant "oct".
-!        initial direction of the octant 
+   !        Sweep for all directions in octant "oct".
+   !        initial direction of the octant 
          da = (oct-1)*ndir+1
-
+   
         ! The boundary entries are computed on the exiting part
         ! in order to work only on the exiting part of the bfl
-
-!     Level 0 needs to already be computed before entering recursive 
-!     Function
-
+   
+   !     Level 0 needs to already be computed before entering recursive 
+   !     Function
+   
         CALL XSSRCHOMO0(nn,ng,nr,nx,ny, ndir,
      &                 1,nx,1,ny,1,nz,
      &                 sigt, zreg, aflx(:,:,:,oct), w,
      &                 asrc(:,:,:,oct), xshom0,
      &                 asrcm0)
-
+   
         CALL ONE_COEF3D(nn,ndir,ng,mu,eta,ksi,
      &                delt3,xshom0,
      &                sgnc(:,:,oct),sgni(:,:,oct),
      &                sgne(:,:,oct),sgnt(:,:,oct),
      &                ccof,icof,ecof,tcof)
-
+   
         CALL MERGEBOUND0(nn,nb,
      &                   1,nx,1,ny,1,nz,
      &                   nx,ny,nz,
@@ -173,10 +185,11 @@
      &                   bfly(:,:,:,yinc(oct),oct),
      &                   bflz(:,:,:,zinc(oct),oct),
      &                   finc0)
-
+   
         CALL SWEEP_ONEREGION(nn,2,asrcm0, finc0, aflx0, fout0,
      &                          ccof,icof,ecof,tcof)
-
+   
+   
        ! RECURIVE SWEEP
         nb_cell = 0
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
@@ -198,41 +211,40 @@
      &                         ccof8,icof8,ecof8,tcof8,
      &                         tolinner,tolcor,
      &                         errcor,errmul,ok,delt3,ii,jj,kk,rr,
-     &                         nb_cell,a,b,oksrc,errtot,aflxmean)
-
+     &                         nb_cell,a,b,oksrc,errtot,aflxmean,errbnd)
+   
       print *, xinc(oct), yinc(oct), zinc(oct)
       print *,"nb_cell", nb_cell
-
-      
-      CALL BCD2R2(oct,xout,yout,bflx,bfly,mu,eta,w,pisn,rdir)
-
-!  Compute the flux moments
+   
+   
+   !  Compute the flux moments
       DO c=1,nc
       DO h=1,nh
       fst = 0
       DO d = 1,ndir
-        flxm(:ng,:nr,h,c) = flxm(:ng,:nr,h,c) + 
+        flxm(:ng,:nr,h,c,inew) = 
+     &    flxm(:ng,:nr,h,c,inew) + 
      &    (sphr(h,da+d-1)*w(d))*aflx(fst+1:fst+ng,:nr,c,oct)
         fst = fst + ng
       ENDDO
       ENDDO
       ENDDO
-
-
+   
       ENDDO ! octant loop
-
-!  Compute the inner error
+   
+   !  Compute the inner error
       okinner = .TRUE.
-
+   
       max_err_inner = 0.0
       tol_tmp = 0.0 
-
+   
       spat :   DO c=1,nc
       harm :   DO h=1,nh
       region : DO r = 1,nr
       groupe : DO g = 1,ng
-        errinner = ABS(flxp(g,r,h,c) - flxm(g,r,h,c)) 
-        IF ( errinner  > tolinner * ABS( flxp(g,r,h,c) )
+        errinner = 
+     &  ABS(flxm(g,r,h,c,iold) - flxm(g,r,h,c,inew))
+        IF ( errinner  > tolinner * ABS( flxm(g,r,h,c,iold) )
      &                   + epsilon(1.0) )THEN
           okinner = .FALSE.
           EXIT spat
@@ -242,16 +254,17 @@
       ENDDO harm
       ENDDO spat
       
-      flxp = flxm
+      addrflx = CSHIFT(addrflx, 1)
     !   read(*,*)
-
-! End inner iterations
+   
+   ! End inner iterations
       ENDDO
-
+      finalnewa = addrflx(olda)
       print *,"Number iteration", cnt
     !   print *,"Error inner", errinner
       
       END
+
 
 !----------------------------------------------------------------------
 !----------------------------------------------------------------------

@@ -2,12 +2,12 @@ import vtk
 
 # Lecture du fichier STRUCTURED_GRID (.vtk ASCII)
 reader = vtk.vtkStructuredGridReader()
-reader.SetFileName("flxmtt_1_1_1.vtk")
+reader.SetFileName("flx_vol.vtk")
 reader.Update()
 
 # Écriture en format .vts (VTK XML Structured Grid)
 writer = vtk.vtkXMLStructuredGridWriter()
-writer.SetFileName("flxmtt_1_1_1.vts")
+writer.SetFileName("flx_vol.vts")
 writer.SetInputData(reader.GetOutput())
 writer.SetDataModeToBinary()  # Pour ASCII : writer.SetDataModeToAscii()
 writer.SetCompressorTypeToZLib()  # Compression zlib

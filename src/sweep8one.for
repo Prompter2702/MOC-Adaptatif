@@ -197,7 +197,7 @@
 !----------------------------------------------------------------------
       
       
-      SUBROUTINE SWEEP_8REGIONS(n,mord,asrc,finc,aflx,fout,
+      SUBROUTINE SWEEP_8REGIONS(n,mord,asrc,finc,aflx,fout,fint,
      &                          ccof,icof,ecof,tcof,
      &                          xinc, yinc, zinc)
 
@@ -222,6 +222,7 @@
       INTEGER      :: n,mord
       REAL         :: aflx(n,nc,nr),asrc(n,nc,nr)
       REAL         :: finc(n,nb,zz,ns),fout(n,nb,zz,ns),faux(n,nbd)
+      REAL, INTENT(INOUT)  :: fint(n,nb,zz,ns)
       REAL         :: ccof(n,nc,nc,nr),icof(n,nc,nbd,nr)
       REAL         :: ecof(n,nbd,nc,nr),tcof(n,nbd,nbd,nr)
 
@@ -237,87 +238,6 @@
       zout = 3-zinc
 
       SELECT CASE (mord)
-
-      CASE (1) ! Constant flux scheme.
-!        Prepare sweep in first z-plane, incoming flux.
-!          s=0
-!          DO y=1,2
-!          DO x=1,2
-!             s=s+1
-!             zaux(:,x,y,1)=finc(:,1,s,zz)
-!          ENDDO
-!          ENDDO
-
-! !        Sweep over z-planes.
-         
-!          k =0 
-
-!          DO z=(zinc-1)+1,(zout-1)+1,zout-zinc
-
-! !           Prepare sweep over (x,y) in one z-plane, incomig flux.
-!             s = (z-1)*nx 
-!             DO x=1,2
-!                s = s + 1
-!                yaux(:,x,1)=finc(:,1,s,yy)
-!             ENDDO
-
-! !           Sweep over (x,y) in one z-plane.
-
-!             DO y=(yinc-1)+1,(yout-1)+1,yout-yinc
-
-! !              Prepare sweep along x, incoming flux.
-   
-!                s=(z-1)*ny+y
-!                xaux(:,1)=finc(:,1,s,zz)
-
-! !              Sweep along x.
-
-!                DO x=(xinc-1)+1,(xout-1)+1,xout-xinc
-!                   r=nx*(ny*(z-1)+y-1)+x
-                  
-                  
-!                   aflx(:,r,1)=ccof(:,1,1,r)*asrc(:,r,1)
-!      &                       +icof(:,1,1,r)*xaux(:,1)
-!      &                       +icof(:,1,2,r)*yaux(:,x,1)
-!      &                       +icof(:,1,3,r)*zaux(:,x,y,1)
-!                   faux(:,1)=  ecof(:,1,1,r)*asrc(:,r,1)
-!      &                       +tcof(:,1,1,r)*xaux(:,1)
-!      &                       +tcof(:,1,2,r)*yaux(:,x,1)
-!      &                       +tcof(:,1,3,r)*zaux(:,x,y,1)
-!                   faux(:,2)=  ecof(:,2,1,r)*asrc(:,r,1)
-!      &                       +tcof(:,2,1,r)*xaux(:,1)
-!      &                       +tcof(:,2,2,r)*yaux(:,x,1)
-!      &                       +tcof(:,2,3,r)*zaux(:,x,y,1)
-!                   faux(:,3)=  ecof(:,3,1,r)*asrc(:,r,1)
-!      &                       +tcof(:,3,1,r)*xaux(:,1)
-!      &                       +tcof(:,3,2,r)*yaux(:,x,1)
-!      &                       +tcof(:,3,3,r)*zaux(:,x,y,1)
-
-! !                 Incomig angular flux for neighbouring cells.
-!                   xaux(:,1)    =faux(:,1)
-!                   yaux(:,x,1)  =faux(:,2)
-!                   zaux(:,x,y,1)=faux(:,3)
-
-!                ENDDO
-! !              End of sweep along x, outgoing flux.
-!                fout(:,1,s,xx)=xaux(:,1)
-
-!             ENDDO
-! !           End of sweep over (x,y) in one z-plane, outgoing flux.
-!             DO x=1,nx
-!                s=(z-1)*nx+x
-!                fout(:,1,s,yy)=yaux(:,x,1)
-!             ENDDO
-
-!          ENDDO
-
-! !        End of sweep over z, outgoing flux.
-!          DO y=1,ny
-!          DO x=1,nx
-!             s=(y-1)*nx+x
-!             fout(:,1,s,zz)=zaux(:,x,y,1)
-!          ENDDO
-!          ENDDO
 !    
       CASE (2) ! Linear flux scheme.
 !        Prepare sweep in first z-plane, incoming flux.
@@ -386,6 +306,16 @@
                   ENDDO
 
 !                 Incomig angular flux for neighbouring cells.
+                  fint(:,1,xx,s)=xaux(:,1)
+                  fint(:,2,xx,s)=xaux(:,2)
+                  fint(:,3,xx,s)=xaux(:,3)
+                  fint(:,1,yy,s)=yaux(:,x,1)
+                  fint(:,2,yy,s)=yaux(:,x,2)
+                  fint(:,3,yy,s)=yaux(:,x,3)
+                  fint(:,1,zz,s)=zaux(:,x,y,1)
+                  fint(:,2,zz,s)=zaux(:,x,y,2)
+                  fint(:,3,zz,s)=zaux(:,x,y,3)
+
                   xaux(:,1)    =faux(:,1)
                   xaux(:,2)    =faux(:,2)
                   xaux(:,3)    =faux(:,3)
@@ -395,6 +325,7 @@
                   zaux(:,x,y,1)=faux(:,7)
                   zaux(:,x,y,2)=faux(:,8)
                   zaux(:,x,y,3)=faux(:,9)
+
                 ENDDO
 !              End of sweep along x, outgoing flux.
                fout(:,1,xx,s)=xaux(:,1)

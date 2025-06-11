@@ -101,17 +101,17 @@
 
 !----------------------------------------------------------------------
 
-      SUBROUTINE PROJMEAN1(nn,nr,nx,ny,nz,
+      SUBROUTINE PROJMEAN1(nn,nr,nc,nx,ny,
      &                      imin,imax,jmin,jmax,kmin,kmax,
      &                      aflxmean, aflx1)
 
       IMPLICIT NONE
         
-      INTEGER, PARAMETER :: nc = 4
-      INTEGER, INTENT(IN) :: nn,nr,imin,imax,jmin,jmax,kmin,kmax
-      INTEGER, INTENT(IN) :: nx,ny,nz
+      INTEGER, INTENT(IN) :: nn,nc,nr,imin,imax,jmin,jmax,kmin,kmax
+      INTEGER, INTENT(IN) :: nx,ny
 
-      REAL, INTENT(INOUT) :: aflx1(nn,nc,8), aflxmean(nn,nr)
+      REAL, INTENT(IN) :: aflx1(nn,nc,8) 
+      REAL, INTENT(INOUT) :: aflxmean(nn,nr)
 
       INTEGER :: kk,jj,ii,cnt,icnt,jcnt,kcnt,x,y,z,r,
      &           i_half,j_half,k_half,itot,ktot,jtot
@@ -122,7 +122,7 @@
       jtot   = (jmax-jmin)/2
       k_half = (kmin+kmax)/2
       ktot   = (kmax-kmin)/2
-     
+
       cnt = 1
       kcnt = kmin
       DO kk =0,1
@@ -140,10 +140,10 @@
             ENDDO
             cnt = cnt + 1 
             icnt = i_half + 1
-            ENDDO
-        jcnt = j_half + 1
         ENDDO
-        kcnt = k_half + 1
+        jcnt = j_half + 1
+      ENDDO
+      kcnt = k_half + 1
       ENDDO
 
 

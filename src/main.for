@@ -26,7 +26,7 @@
 
       REAL(KIND=8), ALLOCATABLE :: mu(:),eta(:),ksi(:),w(:)
 
-      REAL,    ALLOCATABLE :: flxm(:,:,:,:,:)
+      REAL,    ALLOCATABLE :: flxm(:,:,:,:)
       REAL,    ALLOCATABLE :: bflx(:,:,:,:,:),
      &                        bfly(:,:,:,:,:),
      &                        bflz(:,:,:,:,:)
@@ -37,7 +37,6 @@
       INTEGER, ALLOCATABLE :: zreg(:)
       REAL,    ALLOCATABLE :: aflx(:,:,:,:)
       REAL,    ALLOCATABLE :: dsrc(:,:,:,:)
-      REAL,    ALLOCATABLE :: finc(:,:),fout(:,:)
       REAL,    ALLOCATABLE :: flxp(:,:,:,:),srcm(:,:,:,:),tmom(:,:,:,:)
       REAL,    ALLOCATABLE :: sigg(:,:)
       INTEGER, ALLOCATABLE :: rdir(:,:),dira(:),dirf(:)
@@ -57,7 +56,6 @@
       INTEGER :: count_start, count_end, count_rate
       INTEGER :: x,y,z,r,oct, d,fst,da
       CHARACTER(LEN=20) :: name
-      INTEGER :: lasta
 
     
       !Variables à partir des paramètres
@@ -85,19 +83,21 @@
       lgki =.FALSE.
 
       ! ALLOCATION DES TABLEAUX
-      ALLOCATE(flxm(ng,nr,nh,nc,2))
+      ALLOCATE(flxm(ng,nr,nh,nc))
       ALLOCATE(bflx(nn,nb,nbfx,2,noct))
       ALLOCATE(bfly(nn,nb,nbfy,2,noct))
       ALLOCATE(bflz(nn,nb,nbfz,2,noct))
+
       ALLOCATE(sigt(ng, nmat), sigs(ng,0:nani,nmat))
       ALLOCATE(sphr(nhrm,nd))
       ALLOCATE(mu(ndir),eta(ndir),ksi(ndir),w(ndir))
       ALLOCATE(sgnc(nc,nc,noct),sgni(nc,nbd,noct))
       ALLOCATE(sgne(nc,nbd,noct),sgnt(nbd,nbd,noct))
       ALLOCATE(zreg(nr))
+      
       ALLOCATE(aflx(nn,nr,nc,noct))
       ALLOCATE(dsrc(nn,nr,nc,noct))
-      ALLOCATE(finc(nn,nbd),fout(nn,nbd))
+      
       ALLOCATE(flxp(ng,nr,nh,nc),srcm(ng,nr,nh,nc),tmom(ng,nr,nh,nc))
       ALLOCATE(sigg(ng,nr))
       ALLOCATE(rdir(nd,3))
@@ -113,10 +113,10 @@
       ALLOCATE(finc0(nn,nb,3), fout0(nn,nb,3))
 
 
+
       CALL SYSTEM_CLOCK(count_start, count_rate)  ! Capture début
   
       delt3 = (/delt, delt, delt/)
-      lasta = 2
 
       ! Change nmat according to the number of materials
       ! Definition of the cross sections
@@ -133,8 +133,8 @@
       DO z = 7,8
       DO y = 7,8
       DO x = 7,8
-            r = x + (y-1)*nx + (z-1)*nx*ny
-            zreg(r) = 2
+        r = x + (y-1)*nx + (z-1)*nx*ny
+        zreg(r) = 2
       ENDDO
       ENDDO
       ENDDO
@@ -182,7 +182,7 @@
      &                          nb,nbd,nbfx,nbfy,nbfz,
      &                          nx,ny,nz, 
      &                          nani,nhrm,nd,ndir,
-     &                          sigt,sigs,srcm,asrc,
+     &                          sigt,sigs,flxp,srcm,asrc,
      &                          bflx,bfly,bflz,
      &                          mu,eta,ksi,w,pisn,sphr,
      &                          sgnc,sgni,sgne,sgnt,
@@ -194,7 +194,7 @@
      &                          lgki,
      &                          flxm,delt3,
      &                          maxinner, tolinner, tolcor, aflxmean,
-     &                          pdslu4, lasta,
+     &                          pdslu4,
      &                          aflx0, aflx1,
      &                          xshom0, xshom1,
      &                          asrcm0, asrcm1,
@@ -210,7 +210,7 @@
       ! Affichage des résultats
 
       ! Total mean
-      print*,"Moyenne flux", SUM(flxm(1,:,1,1,lasta), dim=1)/nr
+      print*,"Moyenne flux", SUM(flxm(1,:,1,1), dim=1)/nr
 
 
       flxmean = 0.0
@@ -231,7 +231,7 @@
      &            .TRUE.,.TRUE.,.TRUE.,
      &            0.0,0.0,0.0,                     
      &            (/delt, delt, delt/),
-     &            flxm(1,:,1,1,lasta),name)
+     &            flxm(1,:,1,1),name)
 
       WRITE(name, '(A,I0,A,I0,A,I0,A)') "flx_mean_vol.vtk"
       CALL VOLVTK(nx,ny,nz,

@@ -7,7 +7,7 @@
        ! inputs: cross section  
      &                          sigt,sigs,
        ! inputs: source and flux moments at previous iteration 
-     &                          srcm,asrc,
+     &                          flxp,srcm,asrc,
        ! input/output: boundary flux 
      &                          bflx,bfly,bflz,
        ! input: angular quadrature & spherical harmonics
@@ -35,8 +35,8 @@
      &                          delt3,
       ! max inner iterations and tolerance for inner iterations
      &                          maxinner, tolinner, tolcor,
-     &                          aflxmean, pdslu4, finalnewa,
-      ! auxiliary arrays
+     &                          aflxmean,
+     &                          pdslu4,
      &                          aflx0, aflx1,
      &                          xshom0, xshom1,
      &                          asrcm0, asrcm1,
@@ -56,7 +56,7 @@
       INTEGER, INTENT(IN) :: nn,ng,nr,nh,nc,nx,ny,nz,nmat
       INTEGER, INTENT(IN) :: nb,nbd,nbfx,nbfy,nbfz
       INTEGER, INTENT(IN) :: nani,nhrm,nd,ndir
-      REAL, INTENT(INOUT) :: flxm(ng,nr,nh,nc,2)
+      REAL, INTENT(INOUT) :: flxm(ng,nr,nh,nc)
       REAL, INTENT(INOUT) :: bflx(nn,nb,nbfx,2,noct),
      &                       bfly(nn,nb,nbfy,2,noct),
      &                       bflz(nn,nb,nbfz,2,noct)
@@ -72,17 +72,17 @@
       REAL, INTENT(INOUT) :: aflxmean(nn,nr,noct)
    
       REAL, INTENT(INOUT)    :: asrc(nn,nr,nc,noct)
+      REAL, INTENT(INOUT)    :: flxp(ng,nr,nh,nc)
       REAL, INTENT(INOUT)    :: dsrc(nn,nr,nc,*)
       REAL, INTENT(INOUT)    :: tmom(ng,nr,nh,nc)
-      REAL, INTENT(INOUT)    :: sigg(ng,nr) 
-   
+      REAL, INTENT(INOUT)    :: sigg(ng,nr)
       INTEGER, INTENT(INOUT) :: rdir(nd,*),dira(*),dirf(*)
-      REAL, INTENT(IN)     :: delt3(3)
-      LOGICAL, INTENT(IN) :: lgki
+      LOGICAL, INTENT(INOUT) :: lgki
+      REAL, INTENT(IN)       :: delt3(3)
       REAL(KIND=8), INTENT(INOUT) :: pdslu4(ndir) ! pds to compute src 4 \int(L^4)
    
       INTEGER :: xout,yout,zout,fst
-      INTEGER :: oc,oct,d,da,c,h
+      INTEGER :: oc,oct,d,dd,da,c,h,i
    
       REAL, INTENT(INOUT)  :: aflx0(nn,nc), aflx1(nn,nc,n8)
       REAL, INTENT(INOUT)  :: xshom0(ng), xshom1(ng,n8)
@@ -99,19 +99,15 @@
       INTEGER  :: ii,jj,kk,rr 
       INTEGER , INTENT(IN) :: maxinner
       REAL, INTENT(IN) :: tolinner, tolcor
-      REAL :: errinner
-      INTEGER :: cnt,g,r,nb_cell,a,b,inew,iold
+      REAL :: errinner, tmp
+      INTEGER :: cnt,g,r,j, nb_cell, a,b
       REAL :: max_err_inner, tol_tmp, errtot
       LOGICAL :: oksrc
-      INTEGER :: addrflx(2)
-      INTEGER, PARAMETER :: olda=1, newa=2
-      INTEGER, INTENT(INOUT) :: finalnewa
-      REAL :: errbnd(3)
+   
+      INTEGER :: posmax(4)
    
       cnt = 0
-      addrflx = (/olda, newa/)
-      
-    !   flxp = flxm
+      flxp = flxm
       okinner = .FALSE.
    
       ! Initialization of the coefficients to compute the 
@@ -122,15 +118,12 @@
       ! Internal iterations loop
       DO WHILE (.NOT. okinner .AND. cnt<maxinner)
       cnt = cnt + 1
-      inew = addrflx(newa)
-      iold = addrflx(olda)
    
    !     Adds the contribution of selfscattering sources "sigs*flxp"
    !     to source moments "tmom"
-      CALL GMOM3D(ng,nani,nh,nc,nr,sigs,flxm(1,1,1,1,iold),
-     &            srcm,zreg,sigg,tmom)
+      CALL GMOM3D(ng,nani,nh,nc,nr,sigs,flxp,srcm,zreg,sigg,tmom)
     
-      flxm(:,:,:,:,inew) = 0.0
+      flxm = 0.0
    
       DO oc=1,8
         ! Loop over octants of angular space in order defined by
@@ -171,7 +164,10 @@
      &                 sigt, zreg, aflx(:,:,:,oct), w,
      &                 asrc(:,:,:,oct), xshom0,
      &                 asrcm0)
-   
+
+       print *, asrcm0(1,2,:)    
+
+
         CALL ONE_COEF3D(nn,ndir,ng,mu,eta,ksi,
      &                delt3,xshom0,
      &                sgnc(:,:,oct),sgni(:,:,oct),
@@ -189,7 +185,6 @@
         CALL SWEEP_ONEREGION(nn,2,asrcm0, finc0, aflx0, fout0,
      &                          ccof,icof,ecof,tcof)
    
-   
        ! RECURIVE SWEEP
         nb_cell = 0
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
@@ -202,33 +197,36 @@
      &                         sgne(:,:,oct),sgnt(:,:,oct),
      &                         zreg, asrc(:,:,:,oct),
      &                         aflx(:,:,:,oct),
-     &                         bflx(:,:,:,xout,oct),
-     &                         bfly(:,:,:,yout,oct),
-     &                         bflz(:,:,:,zout,oct),
+     &                         bflx(1,1,1,xout,oct),
+     &                         bfly(1,1,1,yout,oct),
+     &                         bflz(1,1,1,zout,oct),
      &                         aflx0, aflx1,xshom0, xshom1,
      &                         asrcm0, asrcm1,finc0,finc1,
      &                         fout0,fout1,ccof,icof,ecof,tcof,
      &                         ccof8,icof8,ecof8,tcof8,
      &                         tolinner,tolcor,
      &                         errcor,errmul,ok,delt3,ii,jj,kk,rr,
-     &                         nb_cell,a,b,oksrc,errtot,aflxmean,errbnd)
+     &                         nb_cell,a,b,oksrc,errtot,aflxmean)
+
    
       print *, xinc(oct), yinc(oct), zinc(oct)
       print *,"nb_cell", nb_cell
    
+      
+    !   CALL BCD2R2(oct,xout,yout,bflx,bfly,mu,eta,w,pisn,rdir)
    
    !  Compute the flux moments
       DO c=1,nc
       DO h=1,nh
       fst = 0
       DO d = 1,ndir
-        flxm(:ng,:nr,h,c,inew) = 
-     &    flxm(:ng,:nr,h,c,inew) + 
+        flxm(:ng,:nr,h,c) = flxm(:ng,:nr,h,c) + 
      &    (sphr(h,da+d-1)*w(d))*aflx(fst+1:fst+ng,:nr,c,oct)
         fst = fst + ng
       ENDDO
       ENDDO
       ENDDO
+   
    
       ENDDO ! octant loop
    
@@ -242,9 +240,8 @@
       harm :   DO h=1,nh
       region : DO r = 1,nr
       groupe : DO g = 1,ng
-        errinner = 
-     &  ABS(flxm(g,r,h,c,iold) - flxm(g,r,h,c,inew))
-        IF ( errinner  > tolinner * ABS( flxm(g,r,h,c,iold) )
+        errinner = ABS(flxp(g,r,h,c) - flxm(g,r,h,c)) 
+        IF ( errinner  > tolinner * ABS( flxp(g,r,h,c) )
      &                   + epsilon(1.0) )THEN
           okinner = .FALSE.
           EXIT spat
@@ -254,12 +251,12 @@
       ENDDO harm
       ENDDO spat
       
-      addrflx = CSHIFT(addrflx, 1)
-    !   read(*,*)
+      flxp = flxm
+      read(*,*)
    
    ! End inner iterations
       ENDDO
-      finalnewa = addrflx(olda)
+   
       print *,"Number iteration", cnt
     !   print *,"Error inner", errinner
       
@@ -313,7 +310,7 @@
       REAL, INTENT(INOUT)  :: xshom0(ng), xshom1(ng,n8)
       REAL, INTENT(INOUT)  :: asrcm0(ng,ndir,nc), asrcm1(ng,ndir,nc,n8)
       REAL, INTENT(INOUT)  :: finc1(nn,nb,3,ns), fout1(nn,nb,3,ns)
-      REAL, INTENT(INOUT)  :: finc0(nn,nb,3), fout0(nn,nb,3)
+      REAL, INTENT(INOUT)  :: finc0(nn,nb,3),    fout0(nn,nb,3)
       REAL, INTENT(INOUT)  :: aflxmean(nn,nr,n8)
 
 
@@ -743,9 +740,9 @@
      &                      imin,imax,jmin,jmax,kmin,kmax,
      &                      aflx,aflx1)
 
-            CALL PROJMEAN1(nn,nr,nc,nx,ny,nz,
-     &                     imin,imax,jmin,jmax,kmin,kmax,
-     &                     aflxmean, aflx1)
+    !         CALL PROJMEAN1(nn,nr,nc,nx,ny,nz,
+    !  &                     imin,imax,jmin,jmax,kmin,kmax,
+    !  &                     aflxmean, aflx1)
 
             CALL SPLITBOUND1(nn,ng,nb,
      &                      imin, imax,jmin,jmax,kmin,kmax,

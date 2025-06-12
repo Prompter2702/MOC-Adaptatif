@@ -642,7 +642,7 @@
 
 !-----------------------------------------------------------------------
 
-      SUBROUTINE SPLITVOLHCC(nn,nr,npix,nx,ny,nz,
+      SUBROUTINE SPLITVOLHCC(nn,nr,npix,nx,ny,
      &                  imin,imax,jmin,jmax,kmin,kmax,
      &                  flxmhcc, flxm, bary, list_pix)
 
@@ -657,7 +657,7 @@
 
       INTEGER, PARAMETER :: nc=4
 
-      INTEGER, INTENT(IN) :: nn, nr, npix, nx,ny,nz
+      INTEGER, INTENT(IN) :: nn, nr, npix, nx,ny
       INTEGER, INTENT(IN) :: imin,imax,jmin,jmax,kmin,kmax
       REAL, INTENT(IN)    :: flxmhcc(nn,nc), bary(3)
       REAL, INTENT(INOUT) :: flxm(nn,nr,nc)

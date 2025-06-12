@@ -1,6 +1,5 @@
        SUBROUTINE HCC_COFHCC_PIXEL(
-     &                       oct,
-! inputs HCC main dimensions 
+    ! inputs HCC main dimensions 
      &                       ng,nr,nsur,nsui,nsuo,
      &                       nc,nb,nphy,
      &                       sur_centroid,
@@ -139,7 +138,8 @@
       DO rin=1,nr
       DO c=1,nc 
          
-        ! 1- contruct the volume-source for the couple of indexes (r,c) r = HCC region, c = spatial volume component 
+        ! 1- contruct the volume-source for the couple of indexes (r,c) 
+        ! r = HCC region, c = spatial volume component 
         ! 2- projection: project the volume HCC source onto the pixel support  
         asrc = 0
         bflx = 0
@@ -148,7 +148,7 @@
 
 
         CALL SPLITVOLHCC(ng*nphy*ndir,npix, list_size_reg(rin),
-     &                  nx,ny,nz,
+     &                  nx,ny,
      &                  1,nx,1,ny,1,nz,
      &                  asrcreg(:,:,:,rin) ,asrc, reg_centroid(:,rin),
      &                  list_pix(:,rin))
@@ -241,21 +241,21 @@
             sout = x_pixel(i)
             DO bout=1,nb 
                Tm(:,:, bout, sout, b, sin) = 
-     &         Tm(:,:, bout, sout, b, sin) + bflx(:,:,bout,i,xout) ! FIXME 
+     &          Tm(:,:, bout, sout, b, sin) + bflx(:,:,bout,i,xout) ! FIXME 
             ENDDO 
          ENDDO
          DO i=1,nbfy
             sout = y_pixel(i)
             DO bout=1,nb 
                Tm(:,:, bout, sout, b, sin) = 
-     &         Tm(:,:, bout, sout, b, sin) + bfly(:,:,bout,i,yout) ! FIXME 
+     &          Tm(:,:, bout, sout, b, sin) + bfly(:,:,bout,i,yout) ! FIXME 
             ENDDO 
          ENDDO
          DO i=1,nbfz
             sout = z_pixel(i)
             DO bout=1,nb 
                Tm(:,:, bout, sout, b, sin) = 
-     &         Tm(:,:, bout, sout, b, sin) + bflz(:,:,bout,i,zout) ! FIXME 
+     &          Tm(:,:, bout, sout, b, sin) + bflz(:,:,bout,i,zout) ! FIXME 
             ENDDO 
          ENDDO 
       ENDDO 

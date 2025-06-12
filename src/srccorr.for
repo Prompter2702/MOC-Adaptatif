@@ -157,7 +157,7 @@
         err = 0.0
           DO k=kmin, kmax
           DO j=jmin, jmax
-            err(:,1) = err(:,1) + ABS(bflx(:,1,j,k) - flx0(:,1,1)
+            err(:,1) = err(:,1) +ABS(bflx(:,1,j,k) - flx0(:,1,1)
      &           - 3.0*flx0(:,2,1)*(2*j-jmin-jmax)/Dj
      &           - 3.0*flx0(:,3,1)*(2*k-kmin-kmax)/Dk)
           ENDDO
@@ -198,9 +198,9 @@
      &           +    tcof(:,3,7)*err(:,3)
 
         ! errbnd = SUM(ABS(errfin))/(nn*3)
-        errbnd(1) = SUM( ABS(err(:,1)) )/nn
-        errbnd(2) = SUM( ABS(err(:,2)) )/nn
-        errbnd(3) = SUM( ABS(err(:,3)) )/nn
+        errbnd(1) = SUM( ABS(errfin(:,1)) )/nn
+        errbnd(2) = SUM( ABS(errfin(:,2)) )/nn
+        errbnd(3) = SUM( ABS(errfin(:,3)) )/nn
 
       END SUBROUTINE ERRSURF
 

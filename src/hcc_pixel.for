@@ -171,8 +171,8 @@
         DO i=1,npix
             rout = pixel_to_cmpregion(i)
             DO cout=1,nc 
-               Cm(:, :, cout, rout,c,rin) = 
-     &           Cm(:, :, cout, rout,c,rin) + aflx(:,:,i,c) ! FIXME 
+                Cm(:, :, cout, rout,c,rin) = 
+     &          Cm(:, :, cout, rout,c,rin) + aflx(:,:,i,c) ! FIXME 
             ENDDO  
         ENDDO 
 
@@ -206,9 +206,11 @@
       ! n. of surface-source problems 
       DO sin=1,nsui
       DO b=1,nb 
-         ! 1- contruct boundary-source for the couple of indexes (s,b) s = HCC surface, b = spatial surface component 
+         ! 1- contruct boundary-source for the couple of indexes (s,b) 
+         ! s = HCC surface, b = spatial surface component 
       
-         ! 2- projection: project the boundary HCC source onto the pixel boundary support  
+         ! 2- projection: project the boundary HCC source onto
+         ! the pixel boundary support  
          asrc = 0
          bflx = 0
          bfly = 0

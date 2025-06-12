@@ -79,7 +79,7 @@
       INTEGER, INTENT(INOUT) :: rdir(nd,*),dira(*),dirf(*)
       LOGICAL, INTENT(INOUT) :: lgki
       REAL, INTENT(IN)       :: delt3(3)
-      REAL(KIND=8), INTENT(INOUT) :: pdslu4(ndir) ! pds to compute src 4 \int(L^4)
+      REAL(KIND=8), INTENT(IN) :: pdslu4(ndir) ! pds to compute src 4 \int(L^4)
    
       INTEGER :: xout,yout,zout,fst
       INTEGER :: oc,oct,d,dd,da,c,h,i
@@ -92,6 +92,7 @@
    
       REAL  :: ccof(nn,nc,nc),icof(nn,nc,nbd)
       REAL  :: ecof(nn,nbd,nc),tcof(nn,nbd,nbd)
+      REAL  :: errbnd(3)
       REAL(KIND=8)  :: errcor(ng, ndir),errmul(ng, ndir)
       REAL     :: ccof8(nn,nc,nc,n8),icof8(nn,nc,nbd,n8)
       REAL     :: ecof8(nn,nbd,nc,n8),tcof8(nn,nbd,nbd,n8)
@@ -109,11 +110,11 @@
       cnt = 0
       flxp = flxm
       okinner = .FALSE.
+      errbnd = 0.0
+
    
       ! Initialization of the coefficients to compute the 
       ! srccor error
-      CALL GAUSS_LU4(100,ndir,(/1.0, 1.0, 1.0/), mu,eta,ksi, pdslu4)
-   
    
       ! Internal iterations loop
       DO WHILE (.NOT. okinner .AND. cnt<maxinner)
@@ -165,8 +166,6 @@
      &                 asrc(:,:,:,oct), xshom0,
      &                 asrcm0)
 
-       print *, asrcm0(1,2,:)    
-
 
         CALL ONE_COEF3D(nn,ndir,ng,mu,eta,ksi,
      &                delt3,xshom0,
@@ -185,8 +184,15 @@
         CALL SWEEP_ONEREGION(nn,2,asrcm0, finc0, aflx0, fout0,
      &                          ccof,icof,ecof,tcof)
    
+        CALL ERRSURF(nn,nx,ny,nz,
+     &    1,nx,1,ny,1,nz,
+     &    finc0, bflx,bfly,bflz,tcof,errbnd)
+     
+     
        ! RECURIVE SWEEP
         nb_cell = 0
+
+
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
      &                         nx,ny, nz,
      &                         xinc(oct), yinc(oct), zinc(oct),oct,
@@ -206,7 +212,8 @@
      &                         ccof8,icof8,ecof8,tcof8,
      &                         tolinner,tolcor,
      &                         errcor,errmul,ok,delt3,ii,jj,kk,rr,
-     &                         nb_cell,a,b,oksrc,errtot,aflxmean)
+     &                         nb_cell,a,b,oksrc,errtot,
+     &                         aflxmean(1,1,oct), errbnd )
 
    
       print *, xinc(oct), yinc(oct), zinc(oct)
@@ -252,7 +259,6 @@
       ENDDO spat
       
       flxp = flxm
-      read(*,*)
    
    ! End inner iterations
       ENDDO
@@ -280,8 +286,8 @@
      &                             fout0,fout1,ccof,icof,ecof,tcof,
      &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
      &                             errcor,errmul,ok,delt3,i,j,k,r,
-     &                             nb_cell,g,cnt,oksrc,errtot,aflxmean)
-     
+     &                             nb_cell,g,cnt,oksrc,errtot,aflxmean,
+     &                             errbnd)
       USE SWEEP8ONE
       USE SRCCORR 
 
@@ -311,7 +317,7 @@
       REAL, INTENT(INOUT)  :: asrcm0(ng,ndir,nc), asrcm1(ng,ndir,nc,n8)
       REAL, INTENT(INOUT)  :: finc1(nn,nb,3,ns), fout1(nn,nb,3,ns)
       REAL, INTENT(INOUT)  :: finc0(nn,nb,3),    fout0(nn,nb,3)
-      REAL, INTENT(INOUT)  :: aflxmean(nn,nr,n8)
+      REAL, INTENT(INOUT)  :: aflxmean(nn,nr)
 
 
       REAL, INTENT(INOUT)  :: ccof(nn,nc,nc),icof(nn,nc,nbd)
@@ -323,20 +329,23 @@
       REAL, INTENT(INOUT)  :: errtot
       REAL, INTENT(IN)        :: delt3(3)
       INTEGER, INTENT(INOUT)  :: i,j,k,r, nb_cell,g,cnt
-
+      REAL, INTENT(INOUT) :: errbnd(3)
 
       !Variables locales 
 
       REAL :: asrcmtps(ng,ndir,nc,n8),xshomtps(ng,n8)
       REAL :: ccoftps(nn,nc,nc,n8),icoftps(nn,nc,nbd,n8)
       REAL :: ecoftps(nn,nbd,nc,n8),tcoftps(nn,nbd,nbd,n8)
-      
+      REAL :: finc0tps(nn,nb,nb), finc1tps(nn,nb,nb,ns)
       
       fout1 = 0.0
 
       CALL SRCCOR(ng,ndir,delt3/(2**niv),mu,eta,ksi,asrcm0,
      &            xshom0,errcor,pdslu4)
 
+      errbnd = errbnd*(delt3(3)**2)/(4**niv)
+
+      
       oksrc = .TRUE.
       errtot = 0.0
       cnt = 0
@@ -356,10 +365,11 @@
       ENDDO group1
 
 
+
       group : DO i = 1, ng
       direc : DO j = 1, ndir
         cnt = cnt + 1
-        errtot = ABS( errcor(i,j)) 
+        errtot = ABS( errcor(i,j)) + SUM(errbnd)/3
     !     IF ( errtot  > 3*epsilon(1.0) +
     !  &      tolcor*SUM( ABS(fout0(cnt,1,:)), DIM=1)/3  )THEN
     !         oksrc = .FALSE.
@@ -446,19 +456,18 @@
      &                   nx,ny,nz,
      &                   bflx, bfly, bflz, fout0)
         
-         !!!Aflxmean
+         !Aflxmean
          DO i=kmin,kmax
          DO j= jmin,jmax
          DO k= imin,imax
             r = ((i-1)*ny + (j-1))*nx + k 
-            aflxmean(:,r,oct) = aflx0(:,1)
+            aflxmean(:,r) = aflx0(:,1)
          ENDDO
          ENDDO
          ENDDO
 
-
-          nb_cell = nb_cell + 1
-          RETURN
+         nb_cell = nb_cell + 1
+         RETURN
 
       ELSE IF((imax-imin)>1) THEN
 !         15/ si ko : 
@@ -529,6 +538,20 @@
       tcoftps(:,:,:,8) = tcof8(:,:,:,3-xinc+2*(2-yinc) + 4*(2-zinc))
       icoftps(:,:,:,8) = icof8(:,:,:,3-xinc+2*(2-yinc) + 4*(2-zinc))
 
+      finc1tps = finc1
+
+      finc0tps(:,:,1) = finc1tps(:,:,1, yinc + 2*(zinc-1))
+      finc0tps(:,:,2) = finc1tps(:,:,2, xinc + 2*(zinc-1))
+      finc0tps(:,:,3) = finc1tps(:,:,3, xinc + 2*(yinc-1))
+      CALL ERRSURF(nn,nx,ny,nz,
+     &   (2*imin + (xinc-1)*(imax-imin+2))/2 ,
+     &   (imin + imax + (xinc-1)*(imax-imin))/2,
+     &   (2*jmin + (yinc-1)*(jmax-jmin+2))/2,
+     &   (jmin + jmax + (yinc-1)*(jmax-jmin))/2,
+     &   (2*kmin + (zinc-1)*(kmax-kmin+2))/2,
+     &   (kmin + kmax + (zinc-1)*(jmax-jmin))/2,
+     &    finc0, bflx,bfly,bflz,tcoftps(:,:,:,1),errbnd)
+
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
      &                             nx,ny, nz,
      &                             xinc,yinc,zinc, oct,
@@ -552,8 +575,25 @@
      &                             ecoftps(:,:,:,1),tcoftps(:,:,:,1),
      &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
      &                             errcor,errmul,ok,delt3,i,j,k,r,
-     &                             nb_cell,g,cnt,oksrc,errtot,aflxmean)
-      
+     &                             nb_cell,g,cnt,oksrc,errtot,aflxmean,
+     &                             errbnd)
+
+      finc1tps(:,:,1, yinc + 2*(zinc-1)) = fout0(:,:,1)
+      finc1tps(:,:,2, xinc + 2*(zinc-1)) = fout0(:,:,2)
+      finc1tps(:,:,3, xinc + 2*(yinc-1)) = fout0(:,:,3)
+
+
+      finc0tps(:,:,1) = finc1tps(:,:,1, yinc + 2*(zinc-1))
+      finc0tps(:,:,2) = finc1tps(:,:,2, 3-xinc+ 2*(zinc-1))
+      finc0tps(:,:,3) = finc1tps(:,:,3, 3-xinc+ 2*(yinc-1))
+      CALL ERRSURF(nn,nx,ny,nz,
+     &  (2*imin + (2-xinc)*(imax-imin+2))/2,
+     &  (imin + imax + (2-xinc)*(imax-imin))/2,
+     &  (2*jmin + (yinc-1)*(jmax-jmin+2))/2,
+     &  (jmin + jmax + (yinc-1)*(jmax-jmin))/2,
+     &  (2*kmin + (zinc-1)*(kmax-kmin+2))/2,
+     &  (kmin + kmax + (zinc-1)*(jmax-jmin))/2,
+     &   finc0, bflx,bfly,bflz,tcoftps(:,:,:,2),errbnd)     
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
      &                             nx,ny, nz,
      &                             xinc,yinc,zinc, oct,
@@ -577,8 +617,23 @@
      &                             ecoftps(:,:,:,2),tcoftps(:,:,:,2),
      &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
      &                             errcor,errmul,ok,delt3,i,j,k,r, 
-     &                             nb_cell,g,cnt,oksrc,errtot,aflxmean)
+     &                             nb_cell,g,cnt,oksrc,errtot,aflxmean,
+     &                             errbnd)
+      finc1tps(:,:,1, yinc + 2*(zinc-1))  = fout0(:,:,1)
+      finc1tps(:,:,2, 3-xinc+ 2*(zinc-1)) = fout0(:,:,2)
+      finc1tps(:,:,3, 3-xinc+ 2*(yinc-1)) = fout0(:,:,3)
 
+      finc0(:,:,1) = finc1(:,:,1, 3-yinc + 2*(zinc-1))
+      finc0(:,:,2) = finc1(:,:,2, xinc + 2*(zinc-1))
+      finc0(:,:,3) = finc1(:,:,3, xinc + 2*(2-yinc))
+      CALL ERRSURF(nn,nx,ny,nz,
+     &   (2*imin + (xinc-1)*(imax-imin+2))/2 ,
+     &   (imin + imax + (xinc-1)*(imax-imin))/2,
+     &   (2*jmin + (2-yinc)*(jmax-jmin+2))/2,
+     &   (jmin + jmax + (2-yinc)*(jmax-jmin))/2,
+     &   (2*kmin + (zinc-1)*(kmax-kmin+2))/2,
+     &   (kmin + kmax + (zinc-1)*(jmax-jmin))/2,
+     &    finc0, bflx,bfly,bflz,tcoftps(:,:,:,3),errbnd)
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
      &                             nx,ny, nz,
      &                             xinc,yinc,zinc, oct,
@@ -602,8 +657,23 @@
      &                             ecoftps(:,:,:,3),tcoftps(:,:,:,3),
      &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
      &                             errcor,errmul,ok,delt3,i,j,k,r, 
-     &                             nb_cell,g,cnt,oksrc,errtot,aflxmean)
-        
+     &                             nb_cell,g,cnt,oksrc,errtot,aflxmean,
+     &                             errbnd)
+      finc1(:,:,1, 3-yinc + 2*(zinc-1)) = fout0(:,:,1)
+      finc1(:,:,2, xinc + 2*(zinc-1)) = fout0(:,:,2)
+      finc1(:,:,3, xinc + 2*(2-yinc)) = fout0(:,:,3)
+
+      finc0(:,:,1) = finc1(:,:,1, 3-yinc + 2*(zinc-1))
+      finc0(:,:,2) = finc1(:,:,2, 3-xinc + 2*(zinc-1))
+      finc0(:,:,3) = finc1(:,:,3, 3-xinc + 2*(2-yinc))
+      CALL ERRSURF(nn,nx,ny,nz,
+     &   (2*imin + (2-xinc)*(imax-imin+2))/2,
+     &   (imin + imax + (2-xinc)*(imax-imin))/2,
+     &   (2*jmin + (2-yinc)*(jmax-jmin+2))/2,
+     &   (jmin + jmax + (2-yinc)*(jmax-jmin))/2,
+     &   (2*kmin + (zinc-1)*(kmax-kmin+2))/2,
+     &   (kmin + kmax + (zinc-1)*(jmax-jmin))/2,
+     &    finc0, bflx,bfly,bflz,tcoftps(:,:,:,4),errbnd)             
       CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
      &                             nx,ny, nz,
      &                             xinc,yinc,zinc, oct,
@@ -627,10 +697,23 @@
      &                             ecoftps(:,:,:,4),tcoftps(:,:,:,4),
      &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
      &                             errcor,errmul,ok,delt3,i,j,k,r, 
-     &                             nb_cell,g,cnt,oksrc,errtot,aflxmean)
-
+     &                             nb_cell,g,cnt,oksrc,errtot,aflxmean,
+     &                             errbnd)
+      finc1(:,:,1, 3-yinc + 2*(zinc-1)) = fout0(:,:,1)
+      finc1(:,:,2, 3-xinc + 2*(zinc-1)) = fout0(:,:,2)
+      finc1(:,:,3, 3-xinc + 2*(2-yinc)) = fout0(:,:,3)
 !-----------------------------------------------------------------------
-
+      finc0(:,:,1) = finc1(:,:,1, yinc + 2*(2-zinc))
+      finc0(:,:,2) = finc1(:,:,2, xinc + 2*(2-zinc))
+      finc0(:,:,3) = finc1(:,:,3, xinc + 2*(yinc-1))
+      CALL ERRSURF(nn,nx,ny,nz,
+     &   (2*imin + (xinc-1)*(imax-imin+2))/2 ,
+     &   (imin + imax + (xinc-1)*(imax-imin))/2,
+     &   (2*jmin + (yinc-1)*(jmax-jmin+2))/2,
+     &   (jmin + jmax + (yinc-1)*(jmax-jmin))/2,
+     &   (2*kmin + (2-zinc)*(kmax-kmin+2))/2,
+     &   (kmin + kmax + (2-zinc)*(kmax-kmin))/2,
+     &    finc0, bflx,bfly,bflz,tcoftps(:,:,:,5),errbnd) 
          CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
      &                             nx,ny, nz,
      &                             xinc,yinc,zinc, oct,
@@ -654,8 +737,23 @@
      &                             ecoftps(:,:,:,5),tcoftps(:,:,:,5),
      &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
      &                             errcor,errmul,ok,delt3,i,j,k,r, 
-     &                             nb_cell,g,cnt,oksrc,errtot,aflxmean)
-
+     &                             nb_cell,g,cnt,oksrc,errtot,aflxmean,
+     &                             errbnd)
+       finc1(:,:,1, yinc + 2*(2-zinc)) = fout0(:,:,1)
+       finc1(:,:,2, xinc + 2*(2-zinc)) = fout0(:,:,2)
+       finc1(:,:,3, xinc + 2*(yinc-1)) = fout0(:,:,3)
+    
+       finc0(:,:,1) = finc1(:,:,1, yinc + 2*(2-zinc))
+       finc0(:,:,2) = finc1(:,:,2, 3-xinc + 2*(2-zinc))
+       finc0(:,:,3) = finc1(:,:,3, 3-xinc + 2*(yinc-1))
+       CALL ERRSURF(nn,nx,ny,nz,
+     &   (2*imin + (2-xinc)*(imax-imin+2))/2,
+     &   (imin + imax + (2-xinc)*(imax-imin))/2,
+     &   (2*jmin + (yinc-1)*(jmax-jmin+2))/2,
+     &   (jmin + jmax + (yinc-1)*(jmax-jmin))/2,
+     &   (2*kmin + (2-zinc)*(kmax-kmin+2))/2,
+     &   (kmin + kmax + (2-zinc)*(kmax-kmin))/2,
+     &   finc0, bflx,bfly,bflz,tcoftps(:,:,:,6),errbnd) 
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
      &                             nx,ny, nz,
      &                             xinc,yinc,zinc, oct,
@@ -679,8 +777,23 @@
      &                             ecoftps(:,:,:,6),tcoftps(:,:,:,6),
      &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
      &                             errcor,errmul,ok,delt3,i,j,k,r,   
-     &                             nb_cell,g,cnt,oksrc,errtot,aflxmean)
+     &                             nb_cell,g,cnt,oksrc,errtot,aflxmean,
+     &                             errbnd)
+      finc1(:,:,1, yinc + 2*(2-zinc)) = fout0(:,:,1)
+      finc1(:,:,2, 3-xinc + 2*(2-zinc)) = fout0(:,:,2)
+      finc1(:,:,3, 3-xinc + 2*(yinc-1)) = fout0(:,:,3)
 
+      finc0(:,:,1) = finc1(:,:,1, 3-yinc + 2*(2-zinc))
+      finc0(:,:,2) = finc1(:,:,2, xinc + 2*(2-zinc))
+      finc0(:,:,3) = finc1(:,:,3, xinc + 2*(2-yinc))
+      CALL ERRSURF(nn,nx,ny,nz,
+     &   (2*imin + (xinc-1)*(imax-imin+2))/2 ,
+     &   (imin + imax + (xinc-1)*(imax-imin))/2,
+     &   (2*jmin + (2-yinc)*(jmax-jmin+2))/2,
+     &   (jmin + jmax + (2-yinc)*(jmax-jmin))/2,
+     &   (2*kmin + (2-zinc)*(kmax-kmin+2))/2,
+     &   (kmin + kmax + (2-zinc)*(kmax-kmin))/2,
+     &   finc0, bflx,bfly,bflz,tcoftps(:,:,:,7),errbnd) 
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
      &                             nx,ny, nz,
      &                             xinc,yinc,zinc, oct,
@@ -704,8 +817,24 @@
      &                             ecoftps(:,:,:,7),tcoftps(:,:,:,7),
      &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
      &                             errcor,errmul,ok,delt3,i,j,k,r,        
-     &                             nb_cell,g,cnt,oksrc,errtot,aflxmean)
+     &                             nb_cell,g,cnt,oksrc,errtot,aflxmean,
+     &                             errbnd)
+      finc1(:,:,1, 3-yinc + 2*(2-zinc)) = fout0(:,:,1)
+      finc1(:,:,2, xinc + 2*(2-zinc)) = fout0(:,:,2)
+      finc1(:,:,3, xinc + 2*(2-yinc)) = fout0(:,:,3)
 
+      finc0(:,:,1) = finc1(:,:,1, 3-yinc + 2*(2-zinc))
+      finc0(:,:,2) = finc1(:,:,2, 3-xinc + 2*(2-zinc))
+      finc0(:,:,3) = finc1(:,:,3, 3-xinc + 2*(2-yinc))
+
+      CALL ERRSURF(nn,nx,ny,nz,
+     &   (2*imin + (2-xinc)*(imax-imin+2))/2,
+     &   (imin + imax + (2-xinc)*(imax-imin))/2,
+     &   (2*jmin + (2-yinc)*(jmax-jmin+2))/2,
+     &   (jmin + jmax + (2-yinc)*(jmax-jmin))/2,
+     &   (2*kmin + (2-zinc)*(kmax-kmin+2))/2,
+     &   (kmin + kmax + (2-zinc)*(kmax-kmin))/2,
+     &    finc0, bflx,bfly,bflz,tcoftps(:,:,:,8),errbnd) 
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
      &                             nx,ny, nz,
      &                             xinc,yinc,zinc, oct,
@@ -729,7 +858,9 @@
      &                             ecoftps(:,:,:,8),tcoftps(:,:,:,8),
      &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
      &                             errcor,errmul,ok,delt3,i,j,k,r,        
-     &                             nb_cell,g,cnt,oksrc,errtot,aflxmean)
+     &                             nb_cell,g,cnt,oksrc,errtot,aflxmean,
+     &                             errbnd)
+
     !- write the outgoing angular flux of node-0 on the fine-mesh
     ! boundary flux
          RETURN
@@ -740,9 +871,9 @@
      &                      imin,imax,jmin,jmax,kmin,kmax,
      &                      aflx,aflx1)
 
-    !         CALL PROJMEAN1(nn,nr,nc,nx,ny,nz,
-    !  &                     imin,imax,jmin,jmax,kmin,kmax,
-    !  &                     aflxmean, aflx1)
+            CALL PROJMEAN1(nn,nr,nc,nx,ny,
+     &                     imin,imax,jmin,jmax,kmin,kmax,
+     &                     aflxmean, aflx1)
 
             CALL SPLITBOUND1(nn,ng,nb,
      &                      imin, imax,jmin,jmax,kmin,kmax,

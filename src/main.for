@@ -12,10 +12,10 @@
 
       IMPLICIT NONE
 
-      INTEGER, PARAMETER :: n = 16 ! Formule triangle
+      INTEGER, PARAMETER :: n = 2 ! Formule triangle
       INTEGER, PARAMETER :: ityp = 4 ! ChebyshevDoubleLegendre
-      REAL, PARAMETER    :: tolinner = 1.0e-4
-      REAL, PARAMETER    :: tolcor   = 1.0e-4
+      REAL, PARAMETER    :: tolinner = 1.0e-6
+      REAL, PARAMETER    :: tolcor   = 1.0e-2
     !   REAL, PARAMETER    :: tolcor   = -1.0
       REAL, PARAMETER    :: delt = 1.0
       INTEGER, PARAMETER :: nmat = 2
@@ -41,10 +41,9 @@
       REAL,    ALLOCATABLE :: sigg(:,:)
       INTEGER, ALLOCATABLE :: rdir(:,:),dira(:),dirf(:)
       REAL,    ALLOCATABLE :: aflxmean(:,:,:), flxmean(:,:)
-      REAL,    ALLOCATABLE :: tcof(:,:,:)
 
       REAL, ALLOCATABLE    :: asrc(:,:,:,:)
-      REAL, ALLOCATABLE    :: pdslu4(:)
+      REAL(KIND=8), ALLOCATABLE    :: pdslu4(:)
       REAL, ALLOCATABLE    :: aflx0(:,:), aflx1(:,:,:)
       REAL, ALLOCATABLE    :: xshom0(:), xshom1(:,:)
       REAL, ALLOCATABLE    :: asrcm0(:,:,:), asrcm1(:,:,:,:)
@@ -63,9 +62,9 @@
       nc = 4
       nb = 3
       ndim = 3
-      nx = 16
-      ny = 16
-      nz = 16
+      nx = 32
+      ny = 32
+      nz = 32
       nani=0
       nhrm=1 
       nh = 1
@@ -103,7 +102,6 @@
       ALLOCATE(rdir(nd,3))
       ALLOCATE(dira(nr),dirf(nr))
       ALLOCATE(aflxmean(nn,nr,noct), flxmean(ng,nr))
-      ALLOCATE(tcof(ng,nbd,nbd))
       ALLOCATE(asrc(nn,nr,nc,noct))
       ALLOCATE(pdslu4(ndir))
       ALLOCATE(aflx0(nn,nc), aflx1(nn,nc,n8))
@@ -121,7 +119,7 @@
       ! Change nmat according to the number of materials
       ! Definition of the cross sections
       sigt(:,1)   = 1.0
-      sigs(:,0,1) = 0.7
+      sigs(:,0,1) = 0.8
       sigt(:,2)   = 20.0
       sigs(:,0,2) = 0.0
       
@@ -130,9 +128,9 @@
       ! Geometry settings
       zreg = 1
 
-      DO z = 7,8
-      DO y = 7,8
-      DO x = 7,8
+      DO z = 13,16
+      DO y = 13,16
+      DO x = 13,16
         r = x + (y-1)*nx + (z-1)*nx*ny
         zreg(r) = 2
       ENDDO
@@ -153,14 +151,14 @@
 
       ! Definition of the external source term
       srcm = 0.0
-      DO z=2,7
-      DO y=2,7
-      DO x=2,7
-        r= x + (y-1)*nx + (z-1)*nx*ny
-        srcm(:,r,1,1) = 5.0
-      ENDDO
-      ENDDO
-      ENDDO
+    !   DO z=6,6
+    !   DO y=6,6
+    !   DO x=6,6
+    !     r= x + (y-1)*nx + (z-1)*nx*ny
+    !     srcm(:,r,1,1) = 15.0
+    !   ENDDO
+    !   ENDDO
+    !   ENDDO
 
         
       DO oct=1,noct
@@ -176,6 +174,10 @@
       w = w/4
       ! Creating the spherical harmonics
       CALL SNQDLFT(ndir,nd,nani,ndim, nhrm, mu,eta,ksi,w,sphr)
+
+      CALL GAUSS_LU4(100,ndir, delt3, mu,eta,ksi, pdslu4)
+
+    !   print *, mu, eta, ksi
 
       ! Main function that do the total flux calculation
       CALL SWEE3D_ADAPTIVE(nn,ng,nr,nh,nc,nmat,
@@ -223,6 +225,9 @@
             fst = fst + ng
         ENDDO
       ENDDO 
+
+      print*,"Moyenne flux", SUM(flxmean(1,:), dim=1)/nr
+
 
       ! Enregistrement des résultats dans un fichier VTK
 

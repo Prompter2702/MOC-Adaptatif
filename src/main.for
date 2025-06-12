@@ -55,6 +55,7 @@
       INTEGER :: count_start, count_end, count_rate
       INTEGER :: x,y,z,r,oct, d,fst,da
       CHARACTER(LEN=20) :: name
+      INTEGER :: lasta
 
     
       !Variables à partir des paramètres
@@ -115,6 +116,7 @@
       CALL SYSTEM_CLOCK(count_start, count_rate)  ! Capture début
   
       delt3 = (/delt, delt, delt/)
+      lasta = 2
 
       ! Change nmat according to the number of materials
       ! Definition of the cross sections
@@ -122,6 +124,8 @@
       sigs(:,0,1) = 0.8
       sigt(:,2)   = 20.0
       sigs(:,0,2) = 0.0
+    !   sigt(:,3)   = 0.0
+    !   sigs(:,0,3) = 0.0
       
       sigg = 0.0
 
@@ -212,7 +216,8 @@
       ! Affichage des résultats
 
       ! Total mean
-      print*,"Moyenne flux", SUM(flxm(1,:,1,1), dim=1)/nr
+      print*,"Moyenne flux", SUM(flxm(1,:,1,1,lasta), dim=1)/nr
+
 
 
       flxmean = 0.0
@@ -236,7 +241,7 @@
      &            .TRUE.,.TRUE.,.TRUE.,
      &            0.0,0.0,0.0,                     
      &            (/delt, delt, delt/),
-     &            flxm(1,:,1,1),name)
+     &            flxm(1,:,1,1,lasta),name)
 
       WRITE(name, '(A,I0,A,I0,A,I0,A)') "flx_mean_vol.vtk"
       CALL VOLVTK(nx,ny,nz,

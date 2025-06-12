@@ -110,7 +110,8 @@
       INTEGER, INTENT(IN) :: nn,nr,nc,imin,imax,jmin,jmax,kmin,kmax
       INTEGER, INTENT(IN) :: nx,ny
 
-      REAL, INTENT(INOUT) :: aflx1(nn,nc,8), aflxmean(nn,nr)
+      REAL, INTENT(IN) :: aflx1(nn,nc,8) 
+      REAL, INTENT(INOUT) :: aflxmean(nn,nr)
 
 
       INTEGER :: kk,jj,ii,cnt,icnt,jcnt,kcnt,x,y,z,r,
@@ -122,7 +123,7 @@
       jtot   = (jmax-jmin)/2
       k_half = (kmin+kmax)/2
       ktot   = (kmax-kmin)/2
-     
+
       cnt = 1
       kcnt = kmin
       DO kk =0,1
@@ -140,10 +141,10 @@
             ENDDO
             cnt = cnt + 1 
             icnt = i_half + 1
-            ENDDO
-        jcnt = j_half + 1
         ENDDO
-        kcnt = k_half + 1
+        jcnt = j_half + 1
+      ENDDO
+      kcnt = k_half + 1
       ENDDO
 
 

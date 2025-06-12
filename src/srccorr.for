@@ -184,18 +184,16 @@
         err(:,3) = err(:,3)/(Di*Dj)
 
         errfin = 0.0D0
-        
-        errfin(:,1) = tcof(:,1,1)*err(:,1)
-     &           +    tcof(:,1,4)*err(:,2)
-     &           +    tcof(:,1,7)*err(:,3)
-
-        errfin(:,2) = tcof(:,2,1)*err(:,1)
-     &           +    tcof(:,2,4)*err(:,2)
-     &           +    tcof(:,2,7)*err(:,3)
-
-        errfin(:,3) = tcof(:,3,1)*err(:,1)
-     &           +    tcof(:,3,4)*err(:,2)
-     &           +    tcof(:,3,7)*err(:,3)
+        errfin = err
+    !     errfin(:,1) = tcof(:,1,1)*err(:,1)
+    !  &           +    tcof(:,1,4)*err(:,2)
+    !  &           +    tcof(:,1,7)*err(:,3)
+    !     errfin(:,2) = tcof(:,2,1)*err(:,1)
+    !  &           +    tcof(:,2,4)*err(:,2)
+    !  &           +    tcof(:,2,7)*err(:,3)
+    !     errfin(:,3) = tcof(:,3,1)*err(:,1)
+    !  &           +    tcof(:,3,4)*err(:,2)
+    !  &           +    tcof(:,3,7)*err(:,3)
 
         ! errbnd = SUM(ABS(errfin))/(nn*3)
         errbnd(1) = SUM( ABS(errfin(:,1)) )/nn

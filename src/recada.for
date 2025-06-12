@@ -56,7 +56,7 @@
       INTEGER, INTENT(IN) :: nn,ng,nr,nh,nc,nx,ny,nz,nmat
       INTEGER, INTENT(IN) :: nb,nbd,nbfx,nbfy,nbfz
       INTEGER, INTENT(IN) :: nani,nhrm,nd,ndir
-      REAL, INTENT(INOUT) :: flxm(ng,nr,nh,nc)
+      REAL, INTENT(INOUT) :: flxm(ng,nr,nh,nc,2)
       REAL, INTENT(INOUT) :: bflx(nn,nb,nbfx,2,noct),
      &                       bfly(nn,nb,nbfy,2,noct),
      &                       bflz(nn,nb,nbfz,2,noct)
@@ -100,15 +100,17 @@
       INTEGER  :: ii,jj,kk,rr 
       INTEGER , INTENT(IN) :: maxinner
       REAL, INTENT(IN) :: tolinner, tolcor
-      REAL :: errinner, tmp
-      INTEGER :: cnt,g,r,j, nb_cell, a,b
+      REAL :: errinner
+      INTEGER :: cnt,g,r,nb_cell,a,b,inew,iold
       REAL :: max_err_inner, tol_tmp, errtot
       LOGICAL :: oksrc
    
       INTEGER :: posmax(4)
    
       cnt = 0
-      flxp = flxm
+      addrflx = (/olda, newa/)
+      
+    !   flxp = flxm
       okinner = .FALSE.
       errbnd = 0.0
 
@@ -207,7 +209,7 @@
      &                         bfly(1,1,1,yout,oct),
      &                         bflz(1,1,1,zout,oct),
      &                         aflx0, aflx1,xshom0, xshom1,
-     &                         asrcm0, asrcm1,finc0,finc1,
+     &                         asrcm0, asrcm1,finc0,finc1,fint1,
      &                         fout0,fout1,ccof,icof,ecof,tcof,
      &                         ccof8,icof8,ecof8,tcof8,
      &                         tolinner,tolcor,
@@ -227,7 +229,8 @@
       DO h=1,nh
       fst = 0
       DO d = 1,ndir
-        flxm(:ng,:nr,h,c) = flxm(:ng,:nr,h,c) + 
+        flxm(:ng,:nr,h,c,inew) = 
+     &    flxm(:ng,:nr,h,c,inew) + 
      &    (sphr(h,da+d-1)*w(d))*aflx(fst+1:fst+ng,:nr,c,oct)
         fst = fst + ng
       ENDDO
@@ -247,8 +250,9 @@
       harm :   DO h=1,nh
       region : DO r = 1,nr
       groupe : DO g = 1,ng
-        errinner = ABS(flxp(g,r,h,c) - flxm(g,r,h,c)) 
-        IF ( errinner  > tolinner * ABS( flxp(g,r,h,c) )
+        errinner = 
+     &  ABS(flxm(g,r,h,c,iold) - flxm(g,r,h,c,inew))
+        IF ( errinner  > tolinner * ABS( flxm(g,r,h,c,iold) )
      &                   + epsilon(1.0) )THEN
           okinner = .FALSE.
           EXIT spat
@@ -282,7 +286,7 @@
      &                             zreg,asrc,aflx,
      &                             bflx, bfly, bflz,
      &                             aflx0, aflx1, xshom0, xshom1,
-     &                             asrcm0, asrcm1,finc0,finc1,
+     &                             asrcm0, asrcm1,finc0,finc1,fint1,
      &                             fout0,fout1,ccof,icof,ecof,tcof,
      &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
      &                             errcor,errmul,ok,delt3,i,j,k,r,
@@ -332,13 +336,15 @@
       REAL, INTENT(INOUT) :: errbnd(3)
 
       !Variables locales 
-
+      
       REAL :: asrcmtps(ng,ndir,nc,n8),xshomtps(ng,n8)
       REAL :: ccoftps(nn,nc,nc,n8),icoftps(nn,nc,nbd,n8)
       REAL :: ecoftps(nn,nbd,nc,n8),tcoftps(nn,nbd,nbd,n8)
       REAL :: finc0tps(nn,nb,nb), finc1tps(nn,nb,nb,ns)
       
       fout1 = 0.0
+
+      !   read(*,*)
 
       CALL SRCCOR(ng,ndir,delt3/(2**niv),mu,eta,ksi,asrcm0,
      &            xshom0,errcor,pdslu4)
@@ -363,6 +369,8 @@
         ENDDO
         ENDDO
       ENDDO group1
+
+      errbnd = 0.0
 
 
 
@@ -406,8 +414,11 @@
      &                    sgnc,sgni,sgne,sgnt,
      &                    ccof8,icof8,ecof8,tcof8)
 
-        CALL SWEEP_8REGIONS(nn,2,asrcm1, finc1, aflx1, fout1,
+        CALL SWEEP_8REGIONS(nn,2,asrcm1, finc1, aflx1, fout1,fint1,
      &                     ccof8,icof8,ecof8,tcof8, xinc, yinc, zinc)
+
+
+
 
         ! read(*,*)
         ! CALL SRC2LVL(ng, ndir, asrcm1, sigt, delt3/(2**niv), errmul)
@@ -570,7 +581,7 @@
      &                             aflx0,aflx1,
      &                             xshomtps(:,1),xshom1,
      &                             asrcmtps(:,:,:,1),asrcm1,finc0,finc1,
-     &                             fout0,fout1,
+     &                             fint1,fout0,fout1,
      &                             ccoftps(:,:,:,1),icoftps(:,:,:,1),
      &                             ecoftps(:,:,:,1),tcoftps(:,:,:,1),
      &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
@@ -612,7 +623,7 @@
      &                             aflx0,aflx1,
      &                             xshomtps(:,2),xshom1,
      &                             asrcmtps(:,:,:,2),asrcm1,finc0,finc1,
-     &                             fout0,fout1,
+     &                             fint1,fout0,fout1,
      &                             ccoftps(:,:,:,2),icoftps(:,:,:,2),
      &                             ecoftps(:,:,:,2),tcoftps(:,:,:,2),
      &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
@@ -652,7 +663,7 @@
      &                             aflx0,aflx1,
      &                             xshomtps(:,3),xshom1,
      &                             asrcmtps(:,:,:,3),asrcm1,finc0,finc1,
-     &                             fout0,fout1,
+     &                             fint1,fout0,fout1,
      &                             ccoftps(:,:,:,3),icoftps(:,:,:,3),
      &                             ecoftps(:,:,:,3),tcoftps(:,:,:,3),
      &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
@@ -692,7 +703,7 @@
      &                             aflx0,aflx1,
      &                             xshomtps(:,4),xshom1,
      &                             asrcmtps(:,:,:,4),asrcm1,finc0,finc1,
-     &                             fout0,fout1,
+     &                             fint1,fout0,fout1,
      &                             ccoftps(:,:,:,4),icoftps(:,:,:,4),
      &                             ecoftps(:,:,:,4),tcoftps(:,:,:,4),
      &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
@@ -732,7 +743,7 @@
      &                             aflx0,aflx1,
      &                             xshomtps(:,5),xshom1,
      &                             asrcmtps(:,:,:,5),asrcm1,finc0,finc1,
-     &                             fout0,fout1,
+     &                             fint1,fout0,fout1,
      &                             ccoftps(:,:,:,5),icoftps(:,:,:,5),
      &                             ecoftps(:,:,:,5),tcoftps(:,:,:,5),
      &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
@@ -772,7 +783,7 @@
      &                             aflx0,aflx1,
      &                             xshomtps(:,6),xshom1,
      &                             asrcmtps(:,:,:,6),asrcm1,finc0,finc1,
-     &                             fout0,fout1,
+     &                             fint1,fout0,fout1,
      &                             ccoftps(:,:,:,6),icoftps(:,:,:,6),
      &                             ecoftps(:,:,:,6),tcoftps(:,:,:,6),
      &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
@@ -812,7 +823,7 @@
      &                             aflx0,aflx1,
      &                             xshomtps(:,7),xshom1,
      &                             asrcmtps(:,:,:,7),asrcm1,finc0,finc1,
-     &                             fout0,fout1,
+     &                             fint1,fout0,fout1,
      &                             ccoftps(:,:,:,7),icoftps(:,:,:,7),
      &                             ecoftps(:,:,:,7),tcoftps(:,:,:,7),
      &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
@@ -853,7 +864,7 @@
      &                             aflx0,aflx1,
      &                             xshomtps(:,8),xshom1,
      &                             asrcmtps(:,:,:,8),asrcm1,finc0,finc1,
-     &                             fout0,fout1,
+     &                             fint1,fout0,fout1,
      &                             ccoftps(:,:,:,8),icoftps(:,:,:,8),
      &                             ecoftps(:,:,:,8),tcoftps(:,:,:,8),
      &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
@@ -873,12 +884,17 @@
 
             CALL PROJMEAN1(nn,nr,nc,nx,ny,
      &                     imin,imax,jmin,jmax,kmin,kmax,
-     &                     aflxmean, aflx1)
+     &                     aflxmean(1,1,oct), aflx1)
 
             CALL SPLITBOUND1(nn,ng,nb,
      &                      imin, imax,jmin,jmax,kmin,kmax,
      &                      nx,ny,nz,
      &                      bflx, bfly, bflz, fout1)
+
+            CALL MERGEBOUND0(nn,nb,imin, imax,jmin,jmax,kmin,kmax,
+     &                   nx,ny,nz,
+     &                   bflx, bfly, bflz, fout0)
+          
 
       ENDIF
       nb_cell = nb_cell + 8

@@ -26,7 +26,7 @@
 
       REAL(KIND=8), ALLOCATABLE :: mu(:),eta(:),ksi(:),w(:)
 
-      REAL,    ALLOCATABLE :: flxm(:,:,:,:)
+      REAL,    ALLOCATABLE :: flxm(:,:,:,:,:)
       REAL,    ALLOCATABLE :: bflx(:,:,:,:,:),
      &                        bfly(:,:,:,:,:),
      &                        bflz(:,:,:,:,:)
@@ -37,7 +37,7 @@
       INTEGER, ALLOCATABLE :: zreg(:)
       REAL,    ALLOCATABLE :: aflx(:,:,:,:)
       REAL,    ALLOCATABLE :: dsrc(:,:,:,:)
-      REAL,    ALLOCATABLE :: flxp(:,:,:,:),srcm(:,:,:,:),tmom(:,:,:,:)
+      REAL,    ALLOCATABLE :: srcm(:,:,:,:),tmom(:,:,:,:)
       REAL,    ALLOCATABLE :: sigg(:,:)
       INTEGER, ALLOCATABLE :: rdir(:,:),dira(:),dirf(:)
       REAL,    ALLOCATABLE :: aflxmean(:,:,:), flxmean(:,:)
@@ -45,7 +45,6 @@
       REAL, ALLOCATABLE    :: asrc(:,:,:,:)
       REAL(KIND=8), ALLOCATABLE    :: pdslu4(:)
       REAL, ALLOCATABLE    :: aflx0(:,:), aflx1(:,:,:)
-      REAL, ALLOCATABLE    :: xshom0(:), xshom1(:,:)
       REAL, ALLOCATABLE    :: asrcm0(:,:,:), asrcm1(:,:,:,:)
       REAL, ALLOCATABLE    :: finc1(:,:,:,:), fout1(:,:,:,:)
       REAL, ALLOCATABLE    :: finc0(:,:,:), fout0(:,:,:)
@@ -55,7 +54,7 @@
       INTEGER :: count_start, count_end, count_rate
       INTEGER :: x,y,z,r,oct, d,fst,da
       CHARACTER(LEN=20) :: name
-      INTEGER :: lasta
+      INTEGER :: lastadd
 
     
       !Variables à partir des paramètres
@@ -83,7 +82,7 @@
       lgki =.FALSE.
 
       ! ALLOCATION DES TABLEAUX
-      ALLOCATE(flxm(ng,nr,nh,nc))
+      ALLOCATE(flxm(ng,nr,nh,nc,2))
       ALLOCATE(bflx(nn,nb,nbfx,2,noct))
       ALLOCATE(bfly(nn,nb,nbfy,2,noct))
       ALLOCATE(bflz(nn,nb,nbfz,2,noct))
@@ -98,7 +97,7 @@
       ALLOCATE(aflx(nn,nr,nc,noct))
       ALLOCATE(dsrc(nn,nr,nc,noct))
       
-      ALLOCATE(flxp(ng,nr,nh,nc),srcm(ng,nr,nh,nc),tmom(ng,nr,nh,nc))
+      ALLOCATE(srcm(ng,nr,nh,nc),tmom(ng,nr,nh,nc))
       ALLOCATE(sigg(ng,nr))
       ALLOCATE(rdir(nd,3))
       ALLOCATE(dira(nr),dirf(nr))
@@ -106,7 +105,6 @@
       ALLOCATE(asrc(nn,nr,nc,noct))
       ALLOCATE(pdslu4(ndir))
       ALLOCATE(aflx0(nn,nc), aflx1(nn,nc,n8))
-      ALLOCATE(xshom0(ng), xshom1(ng,n8))
       ALLOCATE(asrcm0(ng,ndir,nc), asrcm1(ng,ndir,nc,n8))
       ALLOCATE(finc1(nn,nb,3,ns), fout1(nn,nb,3,ns))
       ALLOCATE(finc0(nn,nb,3), fout0(nn,nb,3))
@@ -116,7 +114,7 @@
       CALL SYSTEM_CLOCK(count_start, count_rate)  ! Capture début
   
       delt3 = (/delt, delt, delt/)
-      lasta = 2
+      lastadd = 2
 
       ! Change nmat according to the number of materials
       ! Definition of the cross sections
@@ -184,11 +182,11 @@
     !   print *, mu, eta, ksi
 
       ! Main function that do the total flux calculation
-      CALL SWEE3D_ADAPTIVE(nn,ng,nr,nh,nc,nmat,
+      CALL SWEE_TOT_3D_ADAPTIVE(nn,ng,nr,nh,nc,nmat,
      &                          nb,nbd,nbfx,nbfy,nbfz,
      &                          nx,ny,nz, 
      &                          nani,nhrm,nd,ndir,
-     &                          sigt,sigs,flxp,srcm,asrc,
+     &                          sigt,sigs,srcm,asrc,
      &                          bflx,bfly,bflz,
      &                          mu,eta,ksi,w,pisn,sphr,
      &                          sgnc,sgni,sgne,sgnt,
@@ -202,10 +200,9 @@
      &                          maxinner, tolinner, tolcor, aflxmean,
      &                          pdslu4,
      &                          aflx0, aflx1,
-     &                          xshom0, xshom1,
      &                          asrcm0, asrcm1,
      &                          finc1, fout1,
-     &                          finc0, fout0)
+     &                          finc0, fout0, lastadd)
 
 
       CALL SYSTEM_CLOCK(count_end, count_rate)    ! Capture fin
@@ -216,7 +213,7 @@
       ! Affichage des résultats
 
       ! Total mean
-      print*,"Moyenne flux", SUM(flxm(1,:,1,1,lasta), dim=1)/nr
+      print*,"Moyenne flux", SUM(flxm(1,:,1,1,lastadd), dim=1)/nr
 
 
 
@@ -241,7 +238,7 @@
      &            .TRUE.,.TRUE.,.TRUE.,
      &            0.0,0.0,0.0,                     
      &            (/delt, delt, delt/),
-     &            flxm(1,:,1,1,lasta),name)
+     &            flxm(1,:,1,1,lastadd),name)
 
       WRITE(name, '(A,I0,A,I0,A,I0,A)') "flx_mean_vol.vtk"
       CALL VOLVTK(nx,ny,nz,

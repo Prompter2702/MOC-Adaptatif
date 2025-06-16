@@ -1,28 +1,21 @@
-        SUBROUTINE XSSRCHOMO1(nn,ng,nr,nx,ny, ndir,
+        SUBROUTINE SRCHOMO1(nn,nr,nx,ny,
      &                 imin,imax,jmin,jmax,kmin,kmax,
-     &                 sigt, zreg, aflx, w, asrc, xshom1,
-     &                 srchomo1)
+     &                 zreg, asrc, srchom1)
 
 ! Compute the homogenized angular source and cross-section at lvl 1
 
       IMPLICIT NONE
 
       INTEGER, PARAMETER :: n8 = 8, nc = 4
-      INTEGER, INTENT(IN) :: nn,ng,nr,ndir,
+      INTEGER, INTENT(IN) :: nn,nr,
      &                imin,imax,jmin,jmax,kmin,kmax,nx,ny
       INTEGER, INTENT(IN) :: zreg(nr)
-      REAL(KIND=8), INTENT(IN)    :: w(ndir)
-      REAL, INTENT(IN)    :: sigt(ng,*)
-      REAL, INTENT(IN)    :: aflx(ng,ndir,nr,nc)
       REAL, INTENT(IN)    :: asrc(nn,nr,nc)
 ! output 
-      REAL, INTENT(INOUT) :: xshom1(ng,n8)
-      REAL, INTENT(INOUT) :: srchomo1(nn,nc,n8)
+      REAL, INTENT(INOUT) :: srchom1(nn,nc,n8)
 ! locals 
-      REAL(KIND=8)    :: flxoct(ng,nr)
-      INTEGER :: kk,jj,ii,cnt,icnt,jcnt,kcnt,x,y,z,r,d,
+      INTEGER :: kk,jj,ii,cnt,icnt,jcnt,kcnt,x,y,z,r,
      &           i_half,j_half,k_half,itot,ktot,jtot,m
-      REAL(KIND=8) :: aux(ng,n8), auy(ng,n8), xsmoy(ng,n8) 
 
       i_half = (imin+imax)/2
       itot   = (imax-imin)/2
@@ -31,22 +24,7 @@
       k_half = (kmin+kmax)/2
       ktot   = (kmax-kmin)/2
 
-      flxoct = 0.0
-      DO z=kmin,kmax
-        DO y=jmin,jmax
-            DO x=imin,imax
-                DO d=1,ndir
-                r = ((z-1)*ny + (y-1))*nx + x 
-                flxoct(:,r) = flxoct(:,r) + w(d)*aflx(:,d,r,1)
-                ENDDO
-            ENDDO 
-        ENDDO
-      ENDDO
-
-      aux = 0.0D0
-      auy = 0.0D0
-      srchomo1 = 0.0D0
-      xsmoy = 0.0D0
+      srchom1 = 0.0D0
 
       cnt = 1
       kcnt = kmin
@@ -60,18 +38,15 @@
             DO x= icnt, icnt+itot
               r = ((z-1)*ny + (y-1))*nx + x 
               m = zreg(r)
-              aux(:,cnt) = aux(:,cnt) + sigt(:,m) * flxoct(:,r)
-              auy(:,cnt) = auy(:,cnt) + flxoct(:,r)
-              xsmoy(:,cnt) = xsmoy(:,cnt) + sigt(:,m)
-              srchomo1(:,1,cnt) = srchomo1(:,1,cnt) + asrc(:,r,1)
+              srchom1(:,1,cnt) = srchom1(:,1,cnt) + asrc(:,r,1)
                 
-              srchomo1(:,2,cnt) = srchomo1(:,2,cnt) + (asrc(:,r,2)
+              srchom1(:,2,cnt) = srchom1(:,2,cnt) + (asrc(:,r,2)
      &        + asrc(:,r,1)*(2*x-2*icnt-itot) )/(itot+1)
      
-              srchomo1(:,3,cnt) = srchomo1(:,3,cnt) + ( asrc(:,r,3)
+              srchom1(:,3,cnt) = srchom1(:,3,cnt) + ( asrc(:,r,3)
      &        + asrc(:,r,1)*(2*y-2*jcnt-jtot) )/(jtot+1)
 
-              srchomo1(:,4,cnt) = srchomo1(:,4,cnt) + ( asrc(:,r,4)
+              srchom1(:,4,cnt) = srchom1(:,4,cnt) + ( asrc(:,r,4)
      &        + asrc(:,r,1)*(2*z-2*kcnt-ktot) )/(ktot+1)
                  ENDDO
                  ENDDO
@@ -84,20 +59,9 @@
          kcnt = k_half + 1
       ENDDO
      
-    !   xshom1 = xsmoy/((itot+1)*(jtot+1)*(ktot+1))    
-      
-        DO m=1,ng
-        DO kk=1,n8
-          IF (auy(m,kk) == 0.0D0) THEN
-            xshom1(m,kk) = xsmoy(m,kk)/((itot+1)*(jtot+1)*(ktot+1))
-          ELSE 
-            xshom1(m,kk) = aux(m,kk)/auy(m,kk)
-          ENDIF
-        ENDDO
-      ENDDO
-      srchomo1 = srchomo1/((itot+1)*(jtot+1)*(ktot+1))  
+      srchom1 = srchom1/((itot+1)*(jtot+1)*(ktot+1))  
 
-      END SUBROUTINE XSSRCHOMO1
+      END SUBROUTINE SRCHOMO1
 
 !----------------------------------------------------------------------
 
@@ -152,88 +116,75 @@
 
 !----------------------------------------
 
-      SUBROUTINE XSSRCHOMO0(nn,ng,nr,nx,ny, ndir,
+      SUBROUTINE SRCHOMO0(nn,nr,nx,ny,
      &                 imin,imax,jmin,jmax,kmin,kmax,
-     &                 sigt, zreg, aflx, w, asrc, xshom0,
-     &                 srchomo0)
+     &                 zreg, asrc, srchom0)
 
 ! Compute the homogenized angular source and cross-section at lvl 0
 
         IMPLICIT NONE
    
         INTEGER, PARAMETER :: nc = 4
-        INTEGER, INTENT(IN) :: nn,ng,nr,ndir,
+        INTEGER, INTENT(IN) :: nn,nr,
      &                     imin,imax,jmin,jmax,kmin,kmax,nx,ny
         
         INTEGER, INTENT(IN) :: zreg(nr)
-        REAL(KIND=8), INTENT(IN)    :: w(ndir)
-        REAL, INTENT(IN)    :: sigt(ng,*)
-        REAL, INTENT(IN)    :: aflx(ng,ndir,nr,nc)
-        REAL, INTENT(IN)    :: asrc(nn,nr,nc)
-        ! output 
-        REAL, INTENT(OUT)    :: xshom0(ng), srchomo0(nn,nc)
+        REAL, INTENT(INOUT) :: asrc(nn,nr,nc)
+        REAL, INTENT(OUT)   ::  srchom0(nn,nc)
         
         ! locals 
-        REAL(KIND=8)    :: flxoct(ng,nr)
-        INTEGER :: x,y,z,r,d,m, Di,Dj,Dk
-        REAL(KIND=8) :: aux(ng), auy(ng), xsmoy(ng)
+        INTEGER :: x,y,z,r,m, Di,Dj,Dk
         Di = imax - imin + 1
         Dj = jmax - jmin + 1
         Dk = kmax - kmin + 1
 
-        flxoct = 0.0
-
-
-        DO z=kmin,kmax
-          DO y=jmin,jmax
-              DO x=imin,imax
-                  DO d=1,ndir
-                  r = ((z-1)*ny + (y-1))*nx + x 
-                  flxoct(:,r) = flxoct(:,r) + 8*w(d)*aflx(:,d,r,1)
-                  ENDDO
-              ENDDO 
-          ENDDO
-        ENDDO
-   
-        aux = 0.0D0
-        auy = 0.0D0
-        srchomo0 = 0.0D0
-        xsmoy = 0.0D0
+        srchom0 = 0.0D0
    
         DO z=kmin,kmax
           DO y= jmin,jmax
             DO x= imin,imax
               r = ((z-1)*ny + (y-1))*nx + x 
               m = zreg(r)
-              aux(:) = aux(:) + sigt(:,m) * flxoct(:,r)
-              xsmoy(:) = xsmoy(:) + sigt(:,m)
-              auy(:) = auy(:) + flxoct(:,r)
-              srchomo0(:,1) = srchomo0(:,1) + asrc(:,r,1)
-              srchomo0(:,2) = srchomo0(:,2) + ( asrc(:,r,2)
+              srchom0(:,1) = srchom0(:,1) + asrc(:,r,1)
+              srchom0(:,2) = srchom0(:,2) + ( asrc(:,r,2)
      &        + asrc(:,r,1)*(2*x-imax-imin) )/Di
      
-              srchomo0(:,3) = srchomo0(:,3) + ( asrc(:,r,3)
+              srchom0(:,3) = srchom0(:,3) + ( asrc(:,r,3)
      &        + asrc(:,r,1)*(2*y-jmax-jmin) )/Dj
 
-              srchomo0(:,4) = srchomo0(:,4) + ( asrc(:,r,4)
+              srchom0(:,4) = srchom0(:,4) + ( asrc(:,r,4)
      &        + asrc(:,r,1)*(2*z-kmax-kmin) )/Dk
 
             ENDDO
           ENDDO
         ENDDO
 
-      ! xshom0 = xsmoy/(Di*Dj*Dk)
-      DO m=1,ng
-        IF (auy(m) == 0.0D0) THEN
-          xshom0(m) = xsmoy(m)/(Di*Dj*Dk)
-        ELSE
-            xshom0(m) = aux(m)/auy(m)
-        ENDIF
-      ENDDO
+      srchom0 = srchom0/(Di*Dj*Dk)  
 
-      srchomo0 = srchomo0/(Di*Dj*Dk)  
+      END SUBROUTINE SRCHOMO0
 
-      END SUBROUTINE XSSRCHOMO0
+      SUBROUTINE FILLXSLVL1(ng,nx,ny,
+     &                      imin,imax,jmin,jmax,kmin,kmax,
+     &                      zreg,xstlv1,sigt)
+
+      IMPLICIT NONE
+
+      INTEGER, INTENT(IN) :: ng,nx,ny,zreg(*),
+     &                       imin,imax,jmin,jmax,kmin,kmax 
+      REAL, INTENT(IN) :: sigt(ng,*)
+      REAL, INTENT(INOUT) :: xstlv1(ng,8)
+
+      xstlv1(:,1) = sigt(:,zreg(imin + (jmin-1)*nx + (kmin-1)*nx*ny))
+      xstlv1(:,2) = sigt(:,zreg(imax + (jmin-1)*nx + (kmin-1)*nx*ny))
+      xstlv1(:,3) = sigt(:,zreg(imin + (jmax-1)*nx + (kmin-1)*nx*ny))
+      xstlv1(:,4) = sigt(:,zreg(imax + (jmax-1)*nx + (kmin-1)*nx*ny))
+      xstlv1(:,5) = sigt(:,zreg(imin + (jmin-1)*nx + (kmax-1)*nx*ny))
+      xstlv1(:,6) = sigt(:,zreg(imax + (jmin-1)*nx + (kmax-1)*nx*ny))
+      xstlv1(:,7) = sigt(:,zreg(imin + (jmax-1)*nx + (kmax-1)*nx*ny))
+      xstlv1(:,8) = sigt(:,zreg(imax + (jmax-1)*nx + (kmax-1)*nx*ny))
+
+      END SUBROUTINE
+
 
       SUBROUTINE MERGEBOUND0(nn,nb, 
      &                      imin, imax,jmin,jmax,kmin,kmax,
@@ -643,9 +594,9 @@
 
 !-----------------------------------------------------------------------
 
-      SUBROUTINE SPLITVOLHCC(nn,nr,npix,nx,ny,
-     &                  imin,imax,jmin,jmax,kmin,kmax,
-     &                  flxmhcc, flxm, bary, list_pix)
+      SUBROUTINE SPLITVOLHCC(nn,nr,npix_reg,nx,ny,
+     &                  cube_reg,
+     &                  flxmhcc,flxm, bary, list_pix)
 
       
 !      nr number of pixel in hcc, npix nb of pixel in the region
@@ -657,37 +608,175 @@
       IMPLICIT NONE
 
       INTEGER, PARAMETER :: nc=4
-
-      INTEGER, INTENT(IN) :: nn, nr, npix, nx,ny
-      INTEGER, INTENT(IN) :: imin,imax,jmin,jmax,kmin,kmax
+      INTEGER, INTENT(IN) :: nn, nr, npix_reg, nx,ny
+      INTEGER, INTENT(IN) :: cube_reg(2,3)
       REAL, INTENT(IN)    :: flxmhcc(nn,nc), bary(3)
       REAL, INTENT(INOUT) :: flxm(nn,nr,nc)
-      INTEGER, INTENT(IN) :: list_pix(npix,3)
+      INTEGER, INTENT(IN) :: list_pix(npix_reg,3)
 
       INTEGER :: p,i,j,k,r, Di, Dj, Dk
 
-      Di = imax - imin + 1
-      Dj = jmax - jmin + 1
-      Dk = kmax - kmin + 1
+      Di = cube_reg(2,1) - cube_reg(1,1) + 1
+      Dj = cube_reg(2,2) - cube_reg(1,2) + 1
+      Dk = cube_reg(2,3) - cube_reg(1,3) + 1
 
 
-      DO p=1,npix 
+      DO p=1,npix_reg 
         i = list_pix(p,1)
         j = list_pix(p,2)
         k = list_pix(p,3)
         r = i + (j-1)*nx + (k-1)*nx*ny
         flxm(:,r,1) = flxmhcc(:,1) 
-     &       + 3.0*flxmhcc(:,2)*(2*i + 1.0 - 2.0*bary(1))/Di
-     &       + 3.0*flxmhcc(:,3)*(2*j + 1.0 - 2.0*bary(2))/Dj
-     &       + 3.0*flxmhcc(:,4)*(2*j + 1.0 - 2.0*bary(3))/Dk
-        flxm(:,r,2) = flxmhcc(:,2)/Di
-        flxm(:,r,3) = flxmhcc(:,3)/Dj
-        flxm(:,r,4) = flxmhcc(:,4)/Dk
+     &       + 3.0*flxmhcc(:,2)*(2*i + 1.0 - 2.0*bary(1))
+     &       + 3.0*flxmhcc(:,3)*(2*j + 1.0 - 2.0*bary(2))
+     &       + 3.0*flxmhcc(:,4)*(2*j + 1.0 - 2.0*bary(3))
+        flxm(:,r,2) = flxmhcc(:,2)
+        flxm(:,r,3) = flxmhcc(:,3)
+        flxm(:,r,4) = flxmhcc(:,4)
       ENDDO
 
 
 
-
-
       END SUBROUTINE SPLITVOLHCC
+
+
+      SUBROUTINE MERGEVOLHCC(nn,nr,nb_reg,nx,ny,nz,
+     &                  list_cube_reg,pixel_to_cmpregion,
+     &                  aflx, coeffhcc)
+
+      IMPLICIT NONE
+
+      INTEGER, PARAMETER :: nc=4
+ 
+      INTEGER, INTENT(IN) :: nn, nr, nb_reg, nx,ny,nz
+      INTEGER, INTENT(IN) :: list_cube_reg(2,3,nb_reg)
+      INTEGER, INTENT(IN) :: pixel_to_cmpregion(nr)
+      REAL, INTENT(IN)    :: aflx(nn,nr,nc)
+
+      REAL, INTENT(INOUT) :: coeffhcc(nn,nc,nb_reg)
+
+      INTEGER :: x,y,z,r,reg
+
+      INTEGER :: itot(nb_reg),jtot(nb_reg),ktot(nb_reg)
+
+      itot(:) = (list_cube_reg(2,1,:) - list_cube_reg(1,1,:))/2
+      jtot(:) = (list_cube_reg(2,2,:) - list_cube_reg(1,2,:))/2
+      ktot(:) = (list_cube_reg(2,3,:) - list_cube_reg(1,3,:))/2
+
+      DO z=1,nz
+      DO y=1,ny
+      DO x=1,ny
+        r = ((z-1)*ny + (y-1))*nx + x 
+        reg = pixel_to_cmpregion(r)
+        coeffhcc(:,1,reg) = coeffhcc(:,1,reg) + aflx(:,r,1)
+        coeffhcc(:,2,reg) = coeffhcc(:,2,reg) + ( aflx(:,r,2)
+     &        + aflx(:,r,1)*(2*x - itot(reg)) )/itot(reg)
+        coeffhcc(:,3,reg) = coeffhcc(:,3,reg) + ( aflx(:,r,3)
+     &        + aflx(:,r,1)*(2*y - jtot(reg)) )/jtot(reg) 
+        coeffhcc(:,4,reg) = coeffhcc(:,4,reg) + ( aflx(:,r,4)
+     &        + aflx(:,r,1)*(2*z - ktot(reg)) )/ktot(reg)
+          ENDDO
+        ENDDO
+      ENDDO
+
+      DO reg=1,nb_reg
+        coeffhcc(:,:,reg) = coeffhcc(:,:,reg)/
+     &                           (itot(reg)*jtot(reg)*ktot(reg))
+      ENDDO
+
+      END SUBROUTINE MERGEVOLHCC
+
+
+      SUBROUTINE MERGEBOUNDHCC(nn,nsurf,nx,ny,nz,
+     &                  nbfx, nbfy, nbfz, list_square_surf,
+     &                  x_pixel, y_pixel, z_pixel, 
+     &                  list_oct_surf, 
+     &                  bflx,bfly,bflz,coeffhcc)     
+     
+      IMPLICIT NONE
+
+      INTEGER, PARAMETER :: nb=3
+
+      INTEGER, INTENT(IN) :: nn,nsurf,nx,ny,nz
+      INTEGER, INTENT(IN) :: nbfx,nbfy,nbfz
+      INTEGER, INTENT(IN) :: x_pixel(nbfx,2),
+     &                       y_pixel(nbfy,2),
+     &                       z_pixel(nbfz,2)
+
+
+      INTEGER, INTENT(IN) :: list_oct_surf(nsurf) ! list of incoming surfaces for the octant
+      INTEGER, INTENT(IN) :: list_square_surf(2,2,nsurf,2)
+
+      REAL, INTENT(INOUT) :: coeffhcc(nn,nb,nsurf) 
+      REAL, INTENT(IN) :: bflx(nn,nb,nbfx,2),
+     &                    bfly(nn,nb,nbfy,2),
+     &                    bflz(nn,nb,nbfz,2)
+
+      INTEGER :: s,x,y,z,i
+      INTEGER :: atot(nsurf,2), btot(nsurf,2)
+      
+      atot(:,:) = list_square_surf(2,1,:,:)-list_square_surf(1,1,:,:) +1
+      btot(:,:) = list_square_surf(2,2,:,:)-list_square_surf(1,2,:,:) +1
+
+
+      DO y=1,ny
+      DO z=1,nz
+        i = (y + (z-1)*ny)
+        s=x_pixel(i,1)
+        coeffhcc(:,1,s) = coeffhcc(:,1,s) + bflx(:,1,i,1)
+        coeffhcc(:,2,s) = coeffhcc(:,2,s) + (bflx(:,2,i,1)
+     &      + bflx(:,1,i,1)*(2*y-atot(s,1)))/atot(s,1)
+        coeffhcc(:,3,s) = coeffhcc(:,3,s) + (bflx(:,3,i,1)
+     &      + bflx(:,1,i,1)*(2*z-btot(s,1)))/btot(s,1)
+
+        s=x_pixel(i,2)
+        coeffhcc(:,1,s) = coeffhcc(:,1,s) + bflx(:,1,i,2)
+        coeffhcc(:,2,s) = coeffhcc(:,2,s) + (bflx(:,2,i,2)
+     &      + bflx(:,1,i,2)*(2*y-atot(s,2)))/atot(s,2)
+        coeffhcc(:,3,s) = coeffhcc(:,3,s) + (bflx(:,3,i,2)
+     &      + bflx(:,1,i,2)*(2*z-btot(s,2)))/btot(s,2)
+
+      ENDDO
+      ENDDO
+
+      DO x=1,nx
+      DO z=1,nz
+        i = (x + (z-1)*nx)
+        s=y_pixel(i,1)
+        coeffhcc(:,1,s) = coeffhcc(:,1,s) + bfly(:,1,i,1)
+        coeffhcc(:,2,s) = coeffhcc(:,2,s) + (bfly(:,2,i,1)
+     &      + bfly(:,1,i,1)*(2*x-atot(s,1)))/atot(s,1)
+        coeffhcc(:,3,s) = coeffhcc(:,3,s) + (bfly(:,3,i,1)
+     &      + bfly(:,1,i,1)*(2*z-btot(s,1)))/btot(s,1)
+
+        s=y_pixel(i,2)
+        coeffhcc(:,1,s) = coeffhcc(:,1,s) + bfly(:,1,i,2)
+        coeffhcc(:,2,s) = coeffhcc(:,2,s) + (bfly(:,2,i,2)
+     &      + bfly(:,1,i,2)*(2*x-atot(s,2)))/atot(s,2)
+        coeffhcc(:,3,s) = coeffhcc(:,3,s) + (bfly(:,3,i,2)
+     &      + bfly(:,1,i,2)*(2*z-btot(s,2)))/btot(s,2)
+
+      ENDDO
+      ENDDO
+
+      DO x=1,nx
+      DO y=1,ny
+        i = (x + (y-1)*nx)
+        s=z_pixel(i,1)
+        coeffhcc(:,1,s) = coeffhcc(:,1,s) + bflz(:,1,i,1)
+        coeffhcc(:,2,s) = coeffhcc(:,2,s) + (bflz(:,2,i,1)
+     &      + bflz(:,1,i,1)*(2*x-atot(s,1)))/atot(s,1)
+        coeffhcc(:,3,s) = coeffhcc(:,3,s) + (bflz(:,3,i,1)
+     &      + bflz(:,1,i,1)*(2*y-btot(s,1)))/btot(s,1)
+
+        s=z_pixel(i,2)
+        coeffhcc(:,1,s) = coeffhcc(:,1,s) + bflz(:,1,i,2)
+        coeffhcc(:,2,s) = coeffhcc(:,2,s) + (bflz(:,2,i,2)
+     &      + bflz(:,1,i,2)*(2*x-atot(s,2)))/atot(s,2)
+        coeffhcc(:,3,s) = coeffhcc(:,3,s) + (bflz(:,3,i,2)
+     &      + bflz(:,1,i,2)*(2*y-btot(s,2)))/btot(s,2)
+      ENDDO
+      ENDDO
+
+      END SUBROUTINE MERGEBOUNDHCC
         

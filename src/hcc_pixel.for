@@ -21,9 +21,7 @@
        ! input: sing matrices to adapt coefficients to octants 
      &                       sgnc,sgni,sgne,sgnt,
        ! input: auxiliar memory for boundary angular fluxes, angular 
-     &                        asrc,
-       ! source moments and self-scattering xs 
-     &                       sigg, !tmom,
+     &                        asrc,srcm,
        ! input: pixel-to-medium array 
      &                       zreg, 
        ! output: angular flux moments 
@@ -31,17 +29,19 @@
        ! Delta on each direction of the region
      &                       delt3,
       ! max inner iterations and tolerance for inner iterations
-     &                       maxinner, tolinner,
+     &                       tolcor,
       ! outputs  
      &                       Cm,Im,Em,Tm )
 
       USE FLGINC
       
       IMPLICIT NONE
+
+      INTEGER, PARAMETER :: n8 = 8, ns4 = 4, ndim = 3
       
       ! HCC data inputs 
       INTEGER :: ng      ! n. of groups 
-      INTEGER :: nr      ! n. of regions in the HCC 
+      INTEGER :: nr      ! n. of regions in HCC
       INTEGER :: nsur    ! n. of surfaces of the HCC
       INTEGER :: nsui    ! n. of incoming surfaces of the HCC
       INTEGER :: nsuo    ! n. of outgoing surfaces of the HCC
@@ -50,6 +50,7 @@
       INTEGER :: nphy    ! n. of physical HCCs sharing the same HCC geometry
 
       ! data for pixels in the HCC (local data)
+      
       INTEGER :: npix    ! n. of pixels -> nr 
       INTEGER :: nbd     ! nb * (ndim = 3) 
       INTEGER :: nmat    ! n. of media 
@@ -61,10 +62,14 @@
       INTEGER :: nz      ! n. of pixels in Z direction
 
       INTEGER :: list_size_reg(nr)  ! list of nb of pixel in each region
-      INTEGER :: list_pix(npix,nr)  ! list of pixels in each region 
-      INTEGER :: x_pixel(nbfx) ! list of pixel surfaces in X direction
-      INTEGER :: y_pixel(nbfy) ! list of pixel surfaces in Y direction
-      INTEGER :: z_pixel(nbfz) ! list of pixel surfaces in Z direction 
+      INTEGER :: list_pix(npix,3,nr)  ! list of pixels in each region 
+      INTEGER :: list_cube_reg(2,3,nr) ! list of coordinates of the circonsrit 
+      ! cube of each region
+      INTEGER :: x_pixel(nbfx,2) ! list of pixel surfaces in X direction
+      INTEGER :: y_pixel(nbfy,2) ! list of pixel surfaces in Y direction
+      INTEGER :: z_pixel(nbfz,2) ! list of pixel surfaces in Z direction
+
+      INTEGER :: list_oct_surf(8,nsur) ! list of surfaces per incomming octant
 
       INTEGER :: oct      ! octant index
       REAL    , DIMENSION(ng,nmat)    :: sigt   ! total XS per HCC's region
@@ -77,23 +82,27 @@
       REAL, INTENT(IN)                 :: delt3(3)  ! sides' lengths of the HCC's box 
       
       INTEGER :: pixel_to_cmpregion(npix) ! mapping pixel-to-computational region 
+      INTEGER :: list_square_surf(2,2,nsur) ! square circonsrcit of each surface 
+
         
       ! outputs 
-      REAL(KIND=8), DIMENSION(ng*nphy,ndir, nc, nr  ,nc,nr) :: Cm
-      REAL(KIND=8), DIMENSION(ng*nphy,ndir, nb, nsuo,nc,nr) :: Em
+      REAL(KIND=8),INTENT(INOUT), DIMENSION(ng,ndir,nc,nr,nc,nr)   :: Cm
+      REAL(KIND=8),INTENT(INOUT), DIMENSION(ng,ndir,nb,nsuo,nc,nr) :: Em
+      REAL(KIND=8),INTENT(INOUT), DIMENSION(ng,ndir,nc,nr,nb,nsui) :: Im
+      REAL(KIND=8),INTENT(INOUT), DIMENSION(ng,ndir,nb,nsuo,nb,nsui)::Tm
       
-      REAL(KIND=8), DIMENSION(ng*nphy,ndir, nc, nr  , nb, nsui) :: Im
-      REAL(KIND=8), DIMENSION(ng*nphy,ndir, nb, nsuo, nb, nsui) :: Tm
-      
-      
-      REAL :: flxm(ng*nphy,npix,nh,nc) ! angular moments of the flux 
-      REAL :: asrc(ng*nphy,ndir,npix,nc) ! spatial moments of the angular source 
-      REAL :: aflx(ng*nphy,ndir,npix,nc) ! angular flux along the Z-normal surface 
-      
-      REAL :: bflx(ng*nphy,ndir,nb,nbfx,2)  ! boundary angular flux along the X-normal surface 
-      REAL :: bfly(ng*nphy,ndir,nb,nbfy,2)  ! boundary angular flux along the Y-normal surface 
-      REAL :: bflz(ng*nphy,ndir,nb,nbfz,2)  ! boundary angular flux along the Z-normal surface 
-      INTEGER, INTENT(IN) :: zreg(nphy,npix)     ! pixel-to-medium assignment      
+      !! Que des tableaux auxiliaires pour construire les matrices
+
+      REAL, ALLOCATABLE :: asrc(:,:,:,:) ! spatial moments of the angular source 
+      REAL, ALLOCATABLE :: aflx(:,:,:,:) ! angular flux along the Z-normal surface 
+      REAL, ALLOCATABLE :: bflx(:,:,:,:)   ! boundary angular flux along the X-normal surface 
+      REAL, ALLOCATABLE :: bfly(:,:,:,:)   ! boundary angular flux along the Y-normal surface 
+      REAL, ALLOCATABLE :: bflz(:,:,:,:)   ! boundary angular flux along the Z-normal surface 
+      REAL, ALLOCATABLE :: asrc0(:,:,:)
+
+      REAL, INTENT(INOUT) :: tmom(ng,ndir,nc,npix), ! source moments
+     &                       srcm(ng,npix,nh,nc) ! 
+      INTEGER, INTENT(IN) :: zreg(nphy,npix) ! pixel-to-medium assignment      
       
       ! pixel cross sections bufer 
       REAL :: sigg(ng,npix,nphy)
@@ -113,31 +122,49 @@
       !  sign matrices 
       INTEGER,INTENT(IN) :: sgnc(nc,nc,noct),sgni(nc,nbd,noct)
       INTEGER,INTENT(IN) :: sgne(nbd,nc,noct),sgnt(nbd,nbd,noct)
-      INTEGER , INTENT(IN) :: maxinner
-      REAL, INTENT(IN) :: tolinner
+      REAL, INTENT(IN) :: tolcor
+      
 
 
-      REAL  :: asrcreg(ng*nphy,ndir, nc, nr)
+      REAL  :: asrcreg(ng,ndir,nr,nc)
       
       ! locals 
       INTEGER :: npvol, xin,yin,zin, xout,yout,zout, rin,c,b, rout,i,
-     &           sout, cout, bout, sin
+     &           sout, cout, bout, sin, lastadd, nn
+
+      LOGICAL :: lgki
+
+      REAL(KIND=8), ALLOCATABLE    :: pdslu4(:)
+      nn = ng*ndir
+      lgki = .FALSE.
+      tolcor = 1.0e-3
+
+      ALLOCATE(pdslu4(ndir))
+      ALLOCATE(asrc(ng,ndir,npix,nc)) ! spatial moments of the angular source 
+      ALLOCATE(aflx(ng,ndir,npix,nc)) ! angular flux along the Z-normal surface 
+      ALLOCATE(bflx(ng,ndir,nb,nbfx))   ! boundary angular flux along the X-normal surface 
+      ALLOCATE(bfly(ng,ndir,nb,nbfy))   ! boundary angular flux along the Y-normal surface 
+      ALLOCATE(bflz(ng,ndir,nb,nbfz))   ! boundary angular flux along the Z-norma
+      ALLOCATE(asrc0(ng,ndir,nc))
+
       
-      !  ngp = nphy * ng 
-      !  ngd = ndir * ng    
-      !  ngdp = nphy * ngd
-      
-      xin = xinc(oct)
       xout = 3-xin
       yin = yinc(oct)
       yout = 3-yin 
       zin = zinc(oct)
       zout = 3-zin 
 
+      Cm = 0
+      Em = 0
+      Im = 0
+      Tm = 0
+
+      CALL GAUSS_LU4(100,ndir, delt3, mu,eta,ksi, pdslu4)
+
       ! n. of volume-source problems 
+      
       DO rin=1,nr
       DO c=1,nc 
-         
         ! 1- contruct the volume-source for the couple of indexes (r,c) 
         ! r = HCC region, c = spatial volume component 
         ! 2- projection: project the volume HCC source onto the pixel support  
@@ -145,66 +172,48 @@
         bflx = 0
         bfly = 0
         bflz = 0
+        tmom = 0
+        srcm = 0
+        asrc0 = 0
+        asrc0(:,:,c) = 1.0
 
+        CALL SPLITVOLHCC(ng*ndir,npix,nx,ny,
+     &                  asrc0,asrc,reg_centroid(:,rin),
+     &                  list_pix(:,:,rin))
 
-        CALL SPLITVOLHCC(ng*nphy*ndir,npix, list_size_reg(rin),
-     &                  nx,ny,
-     &                  1,nx,1,ny,1,nz,
-     &                  asrcreg(:,:,:,rin) ,asrc, reg_centroid(:,rin),
-     &                  list_pix(:,rin))
-
-        ! 3- solve the pixel volume source problem 
+    ! 3- solve the pixel volume source problem 
     ! Construire une fonction plus adaptée !!
-    !     CALL SWEE3D_ADAPTIVE(ng*ndir,ng,nr,nh,nc,nmat,
-    !  &                       nb,nbd,nbfx,nbfy,nbfz,
-    !  &                       nx,ny,nz,nani,nhrm,nd,ndir,
-    !  &                       sigt,sigs,srcm,
-    !  &                       bflx,bfly,bflz,
-    !  &                       mu,eta,ksi,w,pisn,sphr,
-    !  &                       sgnc,sgni,sgne,sgnt,sigg,
-    !  &                       dsrc,rdir,zreg, 
-    !  &                       dira,dirf,lgki,
-    !  &                       flxm,delt3,
-    !  &                       maxinner, tolinner)
-        
+
+       CALL SWEEP_ADA_ONE_OCTANT(nn,ng,ndir,nr,nh,
+     &                           nx,ny,nz, delt3,
+     &                           xinc,yinc,zinc, oct,
+     &                           sigt,mu,eta,ksi,w,pdslu4,
+     &                           sgnc,sgni,sgne,sgnt,
+     &                           zreg,asrc,aflx,
+     &                           bflx, bfly, bflz,tolcor)
+     
         ! 4- fill-in the C and E matrix column
-        DO i=1,npix
-            rout = pixel_to_cmpregion(i)
-            DO cout=1,nc 
-                Cm(:, :, cout, rout,c,rin) = 
-     &          Cm(:, :, cout, rout,c,rin) + aflx(:,:,i,c) ! FIXME 
-            ENDDO  
-        ENDDO 
-
-        DO i=1,nbfx
-           sout = x_pixel(i)
-           DO bout=1,nb 
-              Em(:, :, bout, sout,c,rin) = 
-     &        Em(:, :, bout, sout,c,rin) + bflx(:,:,bout,i,xout) ! FIXME 
-           ENDDO 
-        ENDDO 
-
-        DO i=1,nbfy
-           sout = y_pixel(i)
-           DO bout=1,nb 
-              Em(:, :, bout, sout,c,rin) = 
-     &        Em(:, :, bout, sout,c,rin) + bfly(:,:,bout,i,yout) ! FIXME 
-           ENDDO 
-        ENDDO 
-
-        DO i=1,nbfz
-           sout = z_pixel(i)
-           DO bout=1,nb 
-              Em(:, :, bout, sout,c,rin) = 
-     &        Em(:, :, bout, sout,c,rin) + bflz(:,:,bout,i,zout) ! FIXME 
-           ENDDO 
-        ENDDO 
+        CALL MERGEVOLHCC(nn,npix,nr,nx,ny,nz,
+     &                   list_cube_reg,pixel_to_cmpregion,
+     &                   aflx, Cm(1,1,1,1,c,rin))
         
-      ENDDO 
+        CALL MERGEBOUNDHCC(nn,nsuo,nx,ny,nz,
+     &                      nbfx, nbfy, nbfz, list_square_surf,
+     &                      x_pixel(:,xout), 
+     &                      y_pixel(:,yout),
+     &                      z_pixel(:,zout),
+     &                      list_oct_surf,   
+     &                      bflx(1,1,1,1),
+     &                      bfly(1,1,1,1),
+     &                      bflz(1,1,1,1),
+     &                      Em(1,1,1,1,c,rin))
+        END DO
+
       ENDDO 
           
       ! n. of surface-source problems 
-      DO sin=1,nsui
+
+      DO sin=1,nsur
       DO b=1,nb 
          ! 1- contruct boundary-source for the couple of indexes (s,b) 
          ! s = HCC surface, b = spatial surface component 
@@ -214,29 +223,30 @@
          asrc = 0
          bflx = 0
          bfly = 0
-         bflz = 0    
+         bflz = 0
+         tmom = 0
+         srcm = 0
+         flxm = 0  
         
-         DO i=1,npix 
-            IF( x_pixel(i) == sin) bflx(:,:,b,i,xinc) = 1 ! FIXME 
+         DO i=1,nbfx 
+            IF( x_pixel(i,1) == sin) bflx(:,:,b,i,1,:) = 1
+            IF( x_pixel(i,2) == sin) bflx(:,:,b,i,2,:) = 1 
          ENDDO
-         DO i=1,npix 
-            IF( y_pixel(i) == sin) bfly(:,:,b,i,yinc) = 1 ! FIXME 
+         DO i=1,nbfy 
+            IF( y_pixel(i,1) == sin) bfly(:,:,b,i,1,:) = 1 
+            IF( y_pixel(i,1) == sin) bfly(:,:,b,i,2,:) = 1 
          ENDDO
-         DO i=1,npix 
-            IF( z_pixel(i) == sin) bflz(:,:,b,i,zinc) = 1 ! FIXME 
+         DO i=1,nbfz 
+            IF( z_pixel(i,1) == sin) bflz(:,:,b,i,1,:) = 1 
+            IF( z_pixel(i,1) == sin) bflz(:,:,b,i,2,:) = 1 
          ENDDO 
          
          ! 3- solve the boundary-source pixel problem 
-        !  CALL SWEE3D_ADAPTIVE
-         
-         ! 4- fill_in the I and T matrix colums
-         DO i=1,npix
-             rout = pixel_to_cmpregion(i)
-             DO cout=1,nc 
-                Im(:,:, cout, rout, b, sin) = 
-     &            Im(:,:, cout, rout, b, sin) + aflx(:,:,i,c) ! FIXME 
-             ENDDO  
-         ENDDO 
+
+          CALL MERGEVOLHCC(nn,npix,nr,nx,ny,nz,
+     &                     list_cube_reg,pixel_to_cmpregion,
+     &                     aflx(:,:,:,:,oct), Im(1,1,1,1,b,sin,oct))
+
          DO i=1,nbfx
             sout = x_pixel(i)
             DO bout=1,nb 
@@ -262,3 +272,30 @@
       ENDDO
          
       END SUBROUTINE HCC_COFHCC_PIXEL
+
+
+      SUBROUTINE CIRC_CUBE(nr,npix,list_size_reg,list_pix,list_cube_reg)
+
+      IMPLICIT NONE
+
+      INTEGER, INTENT(IN) :: nr, npix
+      INTEGER, INTENT(IN) :: list_size_reg(nr), list_pix(npix,3,nr)
+
+      INTEGER, INTENT(OUT) :: list_cube_reg(2,3,nr)
+
+      INTEGER :: r, maxp
+
+
+      DO r=1,nr
+        maxp = list_size_reg(r)
+
+        list_cube_reg(1,1,r) = MINVAL(list_pix(1:maxp,1,r))
+        list_cube_reg(1,2,r) = MINVAL(list_pix(1:maxp,2,r))
+        list_cube_reg(1,3,r) = MINVAL(list_pix(1:maxp,3,r))
+        list_cube_reg(2,1,r) = MAXVAL(list_pix(1:maxp,1,r))
+        list_cube_reg(2,2,r) = MAXVAL(list_pix(1:maxp,2,r))
+        list_cube_reg(2,3,r) = MAXVAL(list_pix(1:maxp,3,r))
+
+      END DO
+
+      END SUBROUTINE CIRC_CUBE

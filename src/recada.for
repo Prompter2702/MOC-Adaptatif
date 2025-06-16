@@ -1,4 +1,4 @@
-      SUBROUTINE SWEE3D_ADAPTIVE(
+      SUBROUTINE SWEE_TOT_3D_ADAPTIVE(
        ! inputs: dimensions 
      &                          nn,ng,nr,nh,nc,nmat,
      &                          nb,nbd,nbfx,nbfy,nbfz,
@@ -7,7 +7,7 @@
        ! inputs: cross section  
      &                          sigt,sigs,
        ! inputs: source and flux moments at previous iteration 
-     &                          flxp,srcm,asrc,
+     &                          srcm,asrc,
        ! input/output: boundary flux 
      &                          bflx,bfly,bflz,
        ! input: angular quadrature & spherical harmonics
@@ -38,10 +38,9 @@
      &                          aflxmean,
      &                          pdslu4,
      &                          aflx0, aflx1,
-     &                          xshom0, xshom1,
      &                          asrcm0, asrcm1,
      &                          finc1, fout1,
-     &                          finc0, fout0)
+     &                          finc0, fout0, lastadd)
    
       USE FLGOCT
       USE FLGBCD
@@ -52,7 +51,6 @@
       IMPLICIT NONE
    
       INTEGER, PARAMETER :: noct = 8, n8=8, ns=4
-      
       INTEGER, INTENT(IN) :: nn,ng,nr,nh,nc,nx,ny,nz,nmat
       INTEGER, INTENT(IN) :: nb,nbd,nbfx,nbfy,nbfz
       INTEGER, INTENT(IN) :: nani,nhrm,nd,ndir
@@ -72,7 +70,6 @@
       REAL, INTENT(INOUT) :: aflxmean(nn,nr,noct)
    
       REAL, INTENT(INOUT)    :: asrc(nn,nr,nc,noct)
-      REAL, INTENT(INOUT)    :: flxp(ng,nr,nh,nc)
       REAL, INTENT(INOUT)    :: dsrc(nn,nr,nc,*)
       REAL, INTENT(INOUT)    :: tmom(ng,nr,nh,nc)
       REAL, INTENT(INOUT)    :: sigg(ng,nr)
@@ -85,7 +82,6 @@
       INTEGER :: oc,oct,d,dd,da,c,h,i
    
       REAL, INTENT(INOUT)  :: aflx0(nn,nc), aflx1(nn,nc,n8)
-      REAL, INTENT(INOUT)  :: xshom0(ng), xshom1(ng,n8)
       REAL, INTENT(INOUT)  :: asrcm0(ng,ndir,nc), asrcm1(ng,ndir,nc,n8)
       REAL, INTENT(INOUT)  :: finc1(nn,nb,3,ns), fout1(nn,nb,3,ns)
       REAL, INTENT(INOUT)  :: finc0(nn,nb,3), fout0(nn,nb,3)
@@ -101,7 +97,9 @@
       INTEGER , INTENT(IN) :: maxinner
       REAL, INTENT(IN) :: tolinner, tolcor
       REAL :: errinner
-      INTEGER :: cnt,g,r,nb_cell,a,b,inew,iold
+      INTEGER :: cnt,g,r,nb_cell,a,b,inew,iold, addrflx(2)
+      INTEGER, PARAMETER :: olda=1, newa=2
+      INTEGER, INTENT(INOUT) :: lastadd
       REAL :: max_err_inner, tol_tmp, errtot
       LOGICAL :: oksrc
    
@@ -110,23 +108,22 @@
       cnt = 0
       addrflx = (/olda, newa/)
       
-    !   flxp = flxm
       okinner = .FALSE.
       errbnd = 0.0
-
-   
       ! Initialization of the coefficients to compute the 
-      ! srccor error
    
       ! Internal iterations loop
       DO WHILE (.NOT. okinner .AND. cnt<maxinner)
       cnt = cnt + 1
-   
+      inew = addrflx(newa)
+      iold = addrflx(olda)
+
    !     Adds the contribution of selfscattering sources "sigs*flxp"
    !     to source moments "tmom"
-      CALL GMOM3D(ng,nani,nh,nc,nr,sigs,flxp,srcm,zreg,sigg,tmom)
+      CALL GMOM3D(ng,nani,nh,nc,nr,sigs,flxm(1,1,1,1,iold),
+     &            srcm,zreg,sigg,tmom)
     
-      flxm = 0.0
+      flxm(:,:,:,:,inew) = 0.0
    
       DO oc=1,8
         ! Loop over octants of angular space in order defined by
@@ -162,15 +159,13 @@
    !     Level 0 needs to already be computed before entering recursive 
    !     Function
    
-        CALL XSSRCHOMO0(nn,ng,nr,nx,ny, ndir,
+        CALL SRCHOMO0(nn,ng,nr,nx,ny, ndir,
      &                 1,nx,1,ny,1,nz,
-     &                 sigt, zreg, aflx(:,:,:,oct), w,
-     &                 asrc(:,:,:,oct), xshom0,
-     &                 asrcm0)
-
+     &                 aflx(:,:,:,oct), w,
+     &                 asrc(:,:,:,oct),asrcm0)
 
         CALL ONE_COEF3D(nn,ndir,ng,mu,eta,ksi,
-     &                delt3,xshom0,
+     &                delt3,sigt(:,zreg(1)),
      &                sgnc(:,:,oct),sgni(:,:,oct),
      &                sgne(:,:,oct),sgnt(:,:,oct),
      &                ccof,icof,ecof,tcof)
@@ -208,8 +203,8 @@
      &                         bflx(1,1,1,xout,oct),
      &                         bfly(1,1,1,yout,oct),
      &                         bflz(1,1,1,zout,oct),
-     &                         aflx0, aflx1,xshom0, xshom1,
-     &                         asrcm0, asrcm1,finc0,finc1,fint1,
+     &                         aflx0, aflx1,
+     &                         asrcm0, asrcm1,finc0,finc1,
      &                         fout0,fout1,ccof,icof,ecof,tcof,
      &                         ccof8,icof8,ecof8,tcof8,
      &                         tolinner,tolcor,
@@ -230,7 +225,7 @@
       fst = 0
       DO d = 1,ndir
         flxm(:ng,:nr,h,c,inew) = 
-     &    flxm(:ng,:nr,h,c,inew) + 
+     &    flxm(:ng,:nr,h,c,inew) +  
      &    (sphr(h,da+d-1)*w(d))*aflx(fst+1:fst+ng,:nr,c,oct)
         fst = fst + ng
       ENDDO
@@ -261,11 +256,13 @@
       ENDDO region
       ENDDO harm
       ENDDO spat
-      
-      flxp = flxm
+    
+      addrflx = CSHIFT(addrflx, 1)
    
    ! End inner iterations
       ENDDO
+
+      lastadd = addrflx(olda)
    
       print *,"Number iteration", cnt
     !   print *,"Error inner", errinner
@@ -280,15 +277,15 @@
      &                             nx,ny,nz,
      &                             xinc,yinc,zinc, oct,
      &                             imin,imax,jmin,jmax,kmin,kmax,niv,
-     &                             sigt, 
+     &                             sigt, xstlvl1,
      &                             mu,eta,ksi,w,pdslu4,
      &                             sgnc,sgni,sgne,sgnt,
      &                             zreg,asrc,aflx,
      &                             bflx, bfly, bflz,
-     &                             aflx0, aflx1, xshom0, xshom1,
-     &                             asrcm0, asrcm1,finc0,finc1,fint1,
+     &                             aflx0, aflx1,
+     &                             asrcm0, asrcm1,finc0,finc1,
      &                             fout0,fout1,ccof,icof,ecof,tcof,
-     &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
+     &                             ccof8,icof8,ecof8,tcof8,tolcor,
      &                             errcor,errmul,ok,delt3,i,j,k,r,
      &                             nb_cell,g,cnt,oksrc,errtot,aflxmean,
      &                             errbnd)
@@ -310,18 +307,19 @@
       INTEGER, INTENT(IN) :: sgnc(nc,nc),sgni(nc,nbd)
       INTEGER, INTENT(IN) :: sgne(nbd,nc),sgnt(nbd,nbd)
       INTEGER, INTENT(IN) :: zreg(nr)
-      REAL, INTENT(IN)    :: tol, tolcor
+      REAL, INTENT(IN)    ::  tolcor
       REAL, INTENT(INOUT) :: asrc(nn,nr,nc)
       REAL, INTENT(INOUT) :: aflx(nn,nr,nc)
       REAL, INTENT(INOUT) :: bflx(nn,nb,ny*nz),bfly(nn,nb,nx*nz),
      &           bflz(nn,nb,nx*ny)
      
       REAL, INTENT(INOUT)  :: aflx0(nn,nc), aflx1(nn,nc,n8)
-      REAL, INTENT(INOUT)  :: xshom0(ng), xshom1(ng,n8)
       REAL, INTENT(INOUT)  :: asrcm0(ng,ndir,nc), asrcm1(ng,ndir,nc,n8)
       REAL, INTENT(INOUT)  :: finc1(nn,nb,3,ns), fout1(nn,nb,3,ns)
       REAL, INTENT(INOUT)  :: finc0(nn,nb,3),    fout0(nn,nb,3)
       REAL, INTENT(INOUT)  :: aflxmean(nn,nr)
+
+      REAL, INTENT(INOUT) :: xstlvl1(ng,n8)
 
 
       REAL, INTENT(INOUT)  :: ccof(nn,nc,nc),icof(nn,nc,nbd)
@@ -341,39 +339,44 @@
       REAL :: ccoftps(nn,nc,nc,n8),icoftps(nn,nc,nbd,n8)
       REAL :: ecoftps(nn,nbd,nc,n8),tcoftps(nn,nbd,nbd,n8)
       REAL :: finc0tps(nn,nb,nb), finc1tps(nn,nb,nb,ns)
+
       
       fout1 = 0.0
 
       !   read(*,*)
 
       CALL SRCCOR(ng,ndir,delt3/(2**niv),mu,eta,ksi,asrcm0,
-     &            xshom0,errcor,pdslu4)
+     &       sigt(ng,zreg(((imin-1)*ny + (jmin-1))*nx + kmin)),
+     &       errcor,pdslu4)
+
+      
+      CALL FILLXSLVL1(ng,imin,imax,jmin,jmax,kmin,kmax,
+     &                zreg,xstlvl1,sigt)
 
       errbnd = errbnd*(delt3(3)**2)/(4**niv)
 
       
       oksrc = .TRUE.
       errtot = 0.0
+      
       cnt = 0
-
-      group1 : DO g=1,ng
-      DO i=kmin,kmax
+      r   = ((imin-1)*ny + (jmin-1))*nx + kmin
+      ido  : DO i= kmin,kmax
       DO j= jmin,jmax
       DO k= imin,imax
-            r = ((i-1)*ny + (j-1))*nx + k 
-            if (xshom0(g) .NE. sigt(g,zreg(r))) THEN
+            cnt = ((i-1)*ny + (j-1))*nx + k 
+            if ( zreg(cnt) .NE. zreg(r)) THEN
                 oksrc = .FALSE.
-                EXIT group1
+                EXIT ido
             ENDIF
-        ENDDO
-        ENDDO
-        ENDDO
-      ENDDO group1
+      ENDDO
+      ENDDO
+      ENDDO ido
 
       errbnd = 0.0
 
 
-
+      cnt = 0
       group : DO i = 1, ng
       direc : DO j = 1, ndir
         cnt = cnt + 1
@@ -399,9 +402,9 @@
 
       IF (.NOT. ok) THEN 
 ! If the criterion is not satisfied, compute on lvl 1
-        CALL XSSRCHOMO1(nn,ng,nr,nx,ny, ndir,
+        CALL SRCHOMO1(nn,ng,nr,nx,ny, ndir,
      &                 imin, imax,jmin,jmax,kmin,kmax,
-     &                 sigt, zreg, aflx, w, asrc, xshom1,
+     &                 aflx, w, asrc,
      &                 asrcm1)
 
         CALL MERGEBOUND1(nn, ng,nb,
@@ -410,14 +413,12 @@
      &                   bflx, bfly, bflz, finc1)
 
         CALL EIGHT_COEF3D(nn,ndir,ng,mu,eta,ksi,
-     &                    delt3/(2**(niv+1)),xshom1,
+     &                    delt3/(2**(niv+1)),xstlvl1,
      &                    sgnc,sgni,sgne,sgnt,
      &                    ccof8,icof8,ecof8,tcof8)
 
-        CALL SWEEP_8REGIONS(nn,2,asrcm1, finc1, aflx1, fout1,fint1,
+        CALL SWEEP_8REGIONS(nn,2,asrcm1, finc1, aflx1, fout1,
      &                     ccof8,icof8,ecof8,tcof8, xinc, yinc, zinc)
-
-
 
 
         ! read(*,*)
@@ -485,29 +486,13 @@
 !        - call recursively the subroutine for the 8 nodes of level-1
 
         asrcmtps(:,:,:,1) = asrcm1(:,:,:, xinc+2*(yinc-1) + 4*(zinc-1))  
-        xshomtps(:,1) = xshom1(:,       xinc+2*(yinc-1) + 4*(zinc-1))
-
         asrcmtps(:,:,:,2) = asrcm1(:,:,:,3-xinc+2*(yinc-1) + 4*(zinc-1))  
-        xshomtps(:,2) = xshom1(:,      3-xinc+2*(yinc-1) + 4*(zinc-1))
-
         asrcmtps(:,:,:,3)= asrcm1(:,:,:,xinc+2*(2-yinc) + 4*(zinc-1))  
-        xshomtps(:,3)= xshom1(:,      xinc+2*(2-yinc) + 4*(zinc-1))
-
         asrcmtps(:,:,:,4)=asrcm1(:,:,:,3-xinc + 2*(2-yinc) + 4*(zinc-1))  
-        xshomtps(:,4)= xshom1(:,      3-xinc + 2*(2-yinc) + 4*(zinc-1))
-
         asrcmtps(:,:,:,5)= asrcm1(:,:,:,xinc + 2*(yinc-1) + 4*(2-zinc))  
-        xshomtps(:,5)= xshom1(:,      xinc + 2*(yinc-1) + 4*(2-zinc))
-
         asrcmtps(:,:,:,6)=asrcm1(:,:,:,3-xinc + 2*(yinc-1) + 4*(2-zinc))  
-        xshomtps(:,6) = xshom1(:,     3-xinc + 2*(yinc-1) + 4*(2-zinc))  
-
         asrcmtps(:,:,:,7)= asrcm1(:,:,:,xinc+2*(2-yinc) + 4*(2-zinc))  
-        xshomtps(:,7)= xshom1(:,      xinc+2*(2-yinc) + 4*(2-zinc))
-
         asrcmtps(:,:,:,8)=asrcm1(:,:,:,3-xinc + 2*(2-yinc) + 4*(2-zinc))  
-        xshomtps(:,8)= xshom1(:,      3-xinc + 2*(2-yinc) + 4*(2-zinc))
-
         
       ccoftps(:,:,:,1) = ccof8(:,:,:, xinc + 2*(yinc-1) + 4*(zinc-1))
       ecoftps(:,:,:,1) = ecof8(:,:,:, xinc + 2*(yinc-1) + 4*(zinc-1))
@@ -573,18 +558,17 @@
      &   (2*kmin + (zinc-1)*(kmax-kmin+2))/2,
      &   (kmin + kmax + (zinc-1)*(jmax-jmin))/2,
      &                             niv+1,
-     &                             sigt,
+     &                             sigt,xstlvl1,
      &                             mu,eta,ksi,w,pdslu4,
      &                             sgnc,sgni,sgne,sgnt,
      &                             zreg,asrc,aflx,
      &                             bflx, bfly, bflz,
      &                             aflx0,aflx1,
-     &                             xshomtps(:,1),xshom1,
      &                             asrcmtps(:,:,:,1),asrcm1,finc0,finc1,
-     &                             fint1,fout0,fout1,
+     &                             fout0,fout1,
      &                             ccoftps(:,:,:,1),icoftps(:,:,:,1),
      &                             ecoftps(:,:,:,1),tcoftps(:,:,:,1),
-     &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
+     &                             ccof8,icof8,ecof8,tcof8,tolcor,
      &                             errcor,errmul,ok,delt3,i,j,k,r,
      &                             nb_cell,g,cnt,oksrc,errtot,aflxmean,
      &                             errbnd)
@@ -615,18 +599,17 @@
      &   (2*kmin + (zinc-1)*(kmax-kmin+2))/2,
      &   (kmin + kmax + (zinc-1)*(jmax-jmin))/2,
      &                             niv+1,
-     &                             sigt,
+     &                             sigt,xstlvl1,
      &                             mu,eta,ksi,w,pdslu4,
      &                             sgnc,sgni,sgne,sgnt,
      &                             zreg,asrc,aflx,
      &                             bflx, bfly, bflz,
      &                             aflx0,aflx1,
-     &                             xshomtps(:,2),xshom1,
      &                             asrcmtps(:,:,:,2),asrcm1,finc0,finc1,
-     &                             fint1,fout0,fout1,
+     &                             fout0,fout1,
      &                             ccoftps(:,:,:,2),icoftps(:,:,:,2),
      &                             ecoftps(:,:,:,2),tcoftps(:,:,:,2),
-     &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
+     &                             ccof8,icof8,ecof8,tcof8,tolcor,
      &                             errcor,errmul,ok,delt3,i,j,k,r, 
      &                             nb_cell,g,cnt,oksrc,errtot,aflxmean,
      &                             errbnd)
@@ -655,18 +638,17 @@
      &   (2*kmin + (zinc-1)*(kmax-kmin+2))/2,
      &   (kmin + kmax + (zinc-1)*(jmax-jmin))/2,
      &                             niv+1,
-     &                             sigt,
+     &                             sigt,xstlvl1,
      &                             mu,eta,ksi,w,pdslu4,
      &                             sgnc,sgni,sgne,sgnt,
      &                             zreg,asrc,aflx,
      &                             bflx, bfly, bflz,
      &                             aflx0,aflx1,
-     &                             xshomtps(:,3),xshom1,
      &                             asrcmtps(:,:,:,3),asrcm1,finc0,finc1,
-     &                             fint1,fout0,fout1,
+     &                             fout0,fout1,
      &                             ccoftps(:,:,:,3),icoftps(:,:,:,3),
      &                             ecoftps(:,:,:,3),tcoftps(:,:,:,3),
-     &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
+     &                             ccof8,icof8,ecof8,tcof8,tolcor,
      &                             errcor,errmul,ok,delt3,i,j,k,r, 
      &                             nb_cell,g,cnt,oksrc,errtot,aflxmean,
      &                             errbnd)
@@ -695,18 +677,17 @@
      &   (2*kmin + (zinc-1)*(kmax-kmin+2))/2,
      &   (kmin + kmax + (zinc-1)*(jmax-jmin))/2,
      &                             niv+1,
-     &                             sigt,
+     &                             sigt,xstlvl1,
      &                             mu,eta,ksi,w,pdslu4,
      &                             sgnc,sgni,sgne,sgnt,
      &                             zreg,asrc,aflx,
      &                             bflx, bfly, bflz,
      &                             aflx0,aflx1,
-     &                             xshomtps(:,4),xshom1,
      &                             asrcmtps(:,:,:,4),asrcm1,finc0,finc1,
-     &                             fint1,fout0,fout1,
+     &                             fout0,fout1,
      &                             ccoftps(:,:,:,4),icoftps(:,:,:,4),
      &                             ecoftps(:,:,:,4),tcoftps(:,:,:,4),
-     &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
+     &                             ccof8,icof8,ecof8,tcof8,tolcor,
      &                             errcor,errmul,ok,delt3,i,j,k,r, 
      &                             nb_cell,g,cnt,oksrc,errtot,aflxmean,
      &                             errbnd)
@@ -735,18 +716,17 @@
      &   (2*kmin + (2-zinc)*(kmax-kmin+2))/2,
      &   (kmin + kmax + (2-zinc)*(kmax-kmin))/2,
      &                             niv+1,
-     &                             sigt,
+     &                             sigt,xstlvl1,
      &                             mu,eta,ksi,w,pdslu4,
      &                             sgnc,sgni,sgne,sgnt,
      &                             zreg,asrc,aflx,
      &                             bflx, bfly, bflz,
      &                             aflx0,aflx1,
-     &                             xshomtps(:,5),xshom1,
      &                             asrcmtps(:,:,:,5),asrcm1,finc0,finc1,
-     &                             fint1,fout0,fout1,
+     &                             fout0,fout1,
      &                             ccoftps(:,:,:,5),icoftps(:,:,:,5),
      &                             ecoftps(:,:,:,5),tcoftps(:,:,:,5),
-     &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
+     &                             ccof8,icof8,ecof8,tcof8,tolcor,
      &                             errcor,errmul,ok,delt3,i,j,k,r, 
      &                             nb_cell,g,cnt,oksrc,errtot,aflxmean,
      &                             errbnd)
@@ -775,18 +755,17 @@
      &   (2*kmin + (2-zinc)*(kmax-kmin+2))/2,
      &   (kmin + kmax + (2-zinc)*(kmax-kmin))/2,
      &                             niv+1,
-     &                             sigt,
+     &                             sigt,xstlvl1,
      &                             mu,eta,ksi,w,pdslu4,
      &                             sgnc,sgni,sgne,sgnt,
      &                             zreg,asrc,aflx,
      &                             bflx, bfly, bflz,
      &                             aflx0,aflx1,
-     &                             xshomtps(:,6),xshom1,
      &                             asrcmtps(:,:,:,6),asrcm1,finc0,finc1,
-     &                             fint1,fout0,fout1,
+     &                             fout0,fout1,
      &                             ccoftps(:,:,:,6),icoftps(:,:,:,6),
      &                             ecoftps(:,:,:,6),tcoftps(:,:,:,6),
-     &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
+     &                             ccof8,icof8,ecof8,tcof8,tolcor,
      &                             errcor,errmul,ok,delt3,i,j,k,r,   
      &                             nb_cell,g,cnt,oksrc,errtot,aflxmean,
      &                             errbnd)
@@ -815,18 +794,17 @@
      &   (2*kmin + (2-zinc)*(kmax-kmin+2))/2,
      &   (kmin + kmax + (2-zinc)*(kmax-kmin))/2,
      &                             niv+1,
-     &                             sigt,
+     &                             sigt,xstlvl1,
      &                             mu,eta,ksi,w,pdslu4,
      &                             sgnc,sgni,sgne,sgnt,
      &                             zreg,asrc,aflx,
      &                             bflx, bfly, bflz,
      &                             aflx0,aflx1,
-     &                             xshomtps(:,7),xshom1,
      &                             asrcmtps(:,:,:,7),asrcm1,finc0,finc1,
-     &                             fint1,fout0,fout1,
+     &                             fout0,fout1,
      &                             ccoftps(:,:,:,7),icoftps(:,:,:,7),
      &                             ecoftps(:,:,:,7),tcoftps(:,:,:,7),
-     &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
+     &                             ccof8,icof8,ecof8,tcof8,tolcor,
      &                             errcor,errmul,ok,delt3,i,j,k,r,        
      &                             nb_cell,g,cnt,oksrc,errtot,aflxmean,
      &                             errbnd)
@@ -856,18 +834,17 @@
      &   (2*kmin + (2-zinc)*(kmax-kmin+2))/2,
      &   (kmin + kmax + (2-zinc)*(kmax-kmin))/2,
      &                             niv+1,
-     &                             sigt,
+     &                             sigt,xstlvl1,
      &                             mu,eta,ksi,w,pdslu4,
      &                             sgnc,sgni,sgne,sgnt,
      &                             zreg,asrc,aflx,
      &                             bflx, bfly, bflz,
      &                             aflx0,aflx1,
-     &                             xshomtps(:,8),xshom1,
      &                             asrcmtps(:,:,:,8),asrcm1,finc0,finc1,
-     &                             fint1,fout0,fout1,
+     &                             fout0,fout1,
      &                             ccoftps(:,:,:,8),icoftps(:,:,:,8),
      &                             ecoftps(:,:,:,8),tcoftps(:,:,:,8),
-     &                             ccof8,icof8,ecof8,tcof8,tol,tolcor,
+     &                             ccof8,icof8,ecof8,tcof8,tolcor,
      &                             errcor,errmul,ok,delt3,i,j,k,r,        
      &                             nb_cell,g,cnt,oksrc,errtot,aflxmean,
      &                             errbnd)
@@ -884,7 +861,7 @@
 
             CALL PROJMEAN1(nn,nr,nc,nx,ny,
      &                     imin,imax,jmin,jmax,kmin,kmax,
-     &                     aflxmean(1,1,oct), aflx1)
+     &                     aflxmean, aflx1)
 
             CALL SPLITBOUND1(nn,ng,nb,
      &                      imin, imax,jmin,jmax,kmin,kmax,
@@ -900,3 +877,87 @@
       nb_cell = nb_cell + 8
 
       END SUBROUTINE RECADA_ONE_OCTANT
+
+
+
+      SUBROUTINE SWEEP_ADA_ONE_OCTANT(nn,ng,ndir,nr,nh,
+     &                             nx,ny,nz, delt3,
+     &                             xinc,yinc,zinc, oct,
+     &                             sigt,mu,eta,ksi,w,pdslu4,
+     &                             sgnc,sgni,sgne,sgnt,
+     &                             zreg,asrc,aflx,
+     &                             bflx, bfly, bflz,tol)
+
+      IMPLICIT NONE 
+
+      INTEGER, PARAMETER :: nc = 4, nb = 3, nbd = 9, n8 = 8, ns = 4
+
+      INTEGER, INTENT(IN) :: nn,ng,ndir,nr,nh,
+     &                       nx,ny,nz,xinc,yinc,zinc,oct
+      REAL, INTENT(IN) :: sigt(ng,*),delt3(3)
+      REAL(KIND=8), INTENT(IN) :: mu(ndir),eta(ndir),ksi(ndir),w(ndir),
+     &                    pdslu4(ndir)
+      INTEGER, INTENT(IN) :: sgnc(nc,nc),sgni(nc,nbd)
+      INTEGER, INTENT(IN) :: sgne(nbd,nc),sgnt(nbd,nbd)
+      INTEGER, INTENT(IN) :: zreg(nr)
+      REAL, INTENT(INOUT) :: bflx(nn,nb,ny*nz),
+     &                       bfly(nn,nb,nx*nz),
+     &                       bflz(nn,nb,nx*ny)
+      REAL, INTENT(IN)    :: tol
+      REAL, INTENT(INOUT) :: asrc(nn,nr,nc)
+      REAL, INTENT(INOUT) :: aflx(nn,nr,nc)
+      
+      REAL, ALLOCATABLE  :: aflx0(:,:), aflx1(:,:,:)
+      REAL, ALLOCATABLE  :: asrcm0(:,:,:), asrcm1(:,:,:,:)
+      REAL, ALLOCATABLE  :: finc1(:,:,:,:), fout1(:,:,:,:)
+      REAL, ALLOCATABLE  :: finc0(:,:,:),    fout0(:,:,:)
+      REAL, ALLOCATABLE  :: ccof(:,:,:),icof(:,:,:)
+      REAL, ALLOCATABLE  :: ecof(:,:,:),tcof(:,:,:)
+      REAL, ALLOCATABLE  :: ccof8(:,:,:,:),icof8(:,:,:,:)
+      REAL, ALLOCATABLE  :: ecof8(:,:,:,:),tcof8(:,:,:,:)
+      REAL, ALLOCATABLE  :: aflxmean(:,:)
+      REAL, ALLOCATABLE  :: xstlvl1(:,:)
+      REAL(KIND=8),ALLOCATABLE  :: errcor(:,:),errmul(:,:)
+
+
+      INTEGER :: i,j,k,r,g,cnt, nb_cell
+      REAL :: errbnd(3), errtot
+      LOGICAL :: ok, oksrc
+
+      ALLOCATE(aflx0(nn,nc), aflx1(nn,nc,n8))
+      ALLOCATE(asrcm0(ng,ndir,nc), asrcm1(ng,ndir,nc,n8))
+      ALLOCATE(finc1(nn,nb,3,ns), fout1(nn,nb,3,ns))
+      ALLOCATE(finc0(nn,nb,3),    fout0(nn,nb,3))
+      ALLOCATE(ccof(nn,nc,nc),icof(nn,nc,nbd))
+      ALLOCATE(ecof(nn,nbd,nc),tcof(nn,nbd,nbd))
+      ALLOCATE(ccof8(nn,nc,nc,n8),icof8(nn,nc,nbd,n8))
+      ALLOCATE(ecof8(nn,nbd,nc,n8),tcof8(nn,nbd,nbd,n8))
+      ALLOCATE(aflxmean(nn,nr))
+      ALLOCATE(xstlvl1(ng,n8))
+      ALLOCATE(errcor(ng, ndir),errmul(ng, ndir))
+
+      nb_cell = 0
+      ok =.FALSE.
+      oksrc = .FALSE.
+      errtot = 0.0
+      errbnd = 0.0
+
+      CALL RECADA_ONE_OCTANT(nn,ng,ndir,nr,nh,
+     &                       nx,ny,nz,
+     &                       xinc,yinc,zinc, oct,
+     &                       1,nx,1,ny,1,nz,0,
+     &                       sigt, xstlvl1,
+     &                       mu,eta,ksi,w,pdslu4,
+     &                       sgnc,sgni,sgne,sgnt,
+     &                       zreg,asrc,aflx,
+     &                       bflx, bfly, bflz,
+     &                       aflx0, aflx1,
+     &                       asrcm0, asrcm1,finc0,finc1,
+     &                       fout0,fout1,ccof,icof,ecof,tcof,
+     &                       ccof8,icof8,ecof8,tcof8,tol,
+     &                       errcor,errmul,ok,delt3,i,j,k,r,
+     &                       nb_cell,g,cnt,oksrc,errtot,aflxmean,
+     &                       errbnd)
+
+
+      END SUBROUTINE SWEEP_ADA_ONE_OCTANT

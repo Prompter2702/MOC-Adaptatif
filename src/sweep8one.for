@@ -197,7 +197,7 @@
 !----------------------------------------------------------------------
       
       
-      SUBROUTINE SWEEP_8REGIONS(n,mord,asrc,finc,aflx,fout,fint,
+      SUBROUTINE SWEEP_8REGIONS(n,mord,asrc,finc,aflx,fout,
      &                          ccof,icof,ecof,tcof,
      &                          xinc, yinc, zinc)
 
@@ -222,7 +222,6 @@
       INTEGER      :: n,mord
       REAL         :: aflx(n,nc,nr),asrc(n,nc,nr)
       REAL         :: finc(n,nb,zz,ns),fout(n,nb,zz,ns),faux(n,nbd)
-      REAL, INTENT(INOUT)  :: fint(n,nb,zz,ns)
       REAL         :: ccof(n,nc,nc,nr),icof(n,nc,nbd,nr)
       REAL         :: ecof(n,nbd,nc,nr),tcof(n,nbd,nbd,nr)
 
@@ -306,16 +305,6 @@
                   ENDDO
 
 !                 Incomig angular flux for neighbouring cells.
-                  fint(:,1,xx,s)=xaux(:,1)
-                  fint(:,2,xx,s)=xaux(:,2)
-                  fint(:,3,xx,s)=xaux(:,3)
-                  fint(:,1,yy,s)=yaux(:,x,1)
-                  fint(:,2,yy,s)=yaux(:,x,2)
-                  fint(:,3,yy,s)=yaux(:,x,3)
-                  fint(:,1,zz,s)=zaux(:,x,y,1)
-                  fint(:,2,zz,s)=zaux(:,x,y,2)
-                  fint(:,3,zz,s)=zaux(:,x,y,3)
-
                   xaux(:,1)    =faux(:,1)
                   xaux(:,2)    =faux(:,2)
                   xaux(:,3)    =faux(:,3)

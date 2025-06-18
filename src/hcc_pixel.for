@@ -34,6 +34,7 @@
      &                       Cm,Im,Em,Tm )
 
       USE FLGINC
+      USE SRCCORR
       
       IMPLICIT NONE
 
@@ -154,6 +155,12 @@
       zin = zinc(oct)
       zout = 3-zin 
 
+      CALL BARY_SURF(nsur,nbfx,nbfy,nbfz,
+     &               nx,ny,nz,
+     &               x_pixel,y_pixel,z_pixel,
+     &               xin,yin,zin,nsuo,nsui,
+     &               sur_centroid,suro_centroid,suri_centroid) 
+
       Cm = 0
       Em = 0
       Im = 0
@@ -247,8 +254,9 @@
      &                           bflx, bfly, bflz,tolcor)
 
           CALL MERGEVOLHCC(nn,npix,nr,nx,ny,nz,
-     &                     list_cube_reg,pixel_to_cmpregion,
+     &                     pixel_to_cmpregion,reg_centroid,
      &                     aflx, Im(1,1,1,1,b,sin))
+
 
           CALL MERGEBOUNDHCC(nn,nsuo,nx,ny,nz,
      &                     suro_centroid,   

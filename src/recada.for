@@ -104,9 +104,11 @@
       LOGICAL :: oksrc
    
       INTEGER :: posmax(4)
-   
+      REAL :: xstlvl1(ng,n8)
+
       cnt = 0
       addrflx = (/olda, newa/)
+      xstlvl1 = 0.0
       
       okinner = .FALSE.
       errbnd = 0.0
@@ -193,8 +195,8 @@
         CALL RECADA_ONE_OCTANT(nn,ng, ndir,nr,nh,
      &                         nx,ny, nz,
      &                         xinc(oct), yinc(oct), zinc(oct),oct,
-     &                         1,nx,1,ny,1,nz,
-     &                         0,sigt, 
+     &                         1,nx,1,ny,1,nz,0,
+     &                         sigt,xstlvl1, 
      &                         mu,eta,ksi,w,pdslu4,
      &                         sgnc(:,:,oct),sgni(:,:,oct),
      &                         sgne(:,:,oct),sgnt(:,:,oct),
@@ -206,8 +208,7 @@
      &                         aflx0, aflx1,
      &                         asrcm0, asrcm1,finc0,finc1,
      &                         fout0,fout1,ccof,icof,ecof,tcof,
-     &                         ccof8,icof8,ecof8,tcof8,
-     &                         tolinner,tolcor,
+     &                         ccof8,icof8,ecof8,tcof8,tolcor,
      &                         errcor,errmul,ok,delt3,ii,jj,kk,rr,
      &                         nb_cell,a,b,oksrc,errtot,
      &                         aflxmean(1,1,oct), errbnd )
@@ -349,8 +350,8 @@
      &       sigt(ng,zreg(((imin-1)*ny + (jmin-1))*nx + kmin)),
      &       errcor,pdslu4)
 
-      
-      CALL FILLXSLVL1(ng,imin,imax,jmin,jmax,kmin,kmax,
+      CALL FILLXSLVL1(ng,nx,ny,
+     &                imin,imax,jmin,jmax,kmin,kmax,
      &                zreg,xstlvl1,sigt)
 
       errbnd = errbnd*(delt3(3)**2)/(4**niv)

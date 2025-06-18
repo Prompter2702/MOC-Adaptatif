@@ -181,6 +181,7 @@
 
     !   print *, mu, eta, ksi
 
+
       ! Main function that do the total flux calculation
       CALL SWEE_TOT_3D_ADAPTIVE(nn,ng,nr,nh,nc,nmat,
      &                          nb,nbd,nbfx,nbfy,nbfz,

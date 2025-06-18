@@ -1,6 +1,6 @@
 build/*
 moddir/*
-sweeprecur
+sweeprecur*
 fort.9
 *.vtk
 *.o

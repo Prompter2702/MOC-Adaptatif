@@ -594,11 +594,10 @@
 
 !-----------------------------------------------------------------------
 
-      SUBROUTINE SPLITVOLHCC(nn,nr,npix_reg,nx,ny,
-     &                  cube_reg,
-     &                  flxmhcc,flxm, bary, list_pix)
+      SUBROUTINE SPLI_COEFF_REG(nn,nr,npix_reg,nx,ny,norm,
+     &                  flxmhcc,flxm, list_pix)
 
-      
+!      ONLY WORK FOR ONE c
 !      nr number of pixel in hcc, npix nb of pixel in the region
 !      imin, imax ... coordinates of the cube circonscrit of the region
 !      flxmhcc moments of the hcc flux
@@ -609,39 +608,26 @@
 
       INTEGER, PARAMETER :: nc=4
       INTEGER, INTENT(IN) :: nn, nr, npix_reg, nx,ny
-      INTEGER, INTENT(IN) :: cube_reg(2,3)
-      REAL, INTENT(IN)    :: flxmhcc(nn,nc), bary(3)
-      REAL, INTENT(INOUT) :: flxm(nn,nr,nc)
+      REAL, INTENT(IN)    :: flxmhcc(nn)
+      REAL, INTENT(INOUT) :: flxm(nn,nr)
       INTEGER, INTENT(IN) :: list_pix(npix_reg,3)
+      INTEGER, INTENT(IN) :: norm
 
-      INTEGER :: p,i,j,k,r, Di, Dj, Dk
-
-      Di = cube_reg(2,1) - cube_reg(1,1) + 1
-      Dj = cube_reg(2,2) - cube_reg(1,2) + 1
-      Dk = cube_reg(2,3) - cube_reg(1,3) + 1
-
+      INTEGER :: p,i,j,k,r
 
       DO p=1,npix_reg 
         i = list_pix(p,1)
         j = list_pix(p,2)
         k = list_pix(p,3)
         r = i + (j-1)*nx + (k-1)*nx*ny
-        flxm(:,r,1) = flxmhcc(:,1) 
-     &       + 3.0*flxmhcc(:,2)*(2*i + 1.0 - 2.0*bary(1))
-     &       + 3.0*flxmhcc(:,3)*(2*j + 1.0 - 2.0*bary(2))
-     &       + 3.0*flxmhcc(:,4)*(2*j + 1.0 - 2.0*bary(3))
-        flxm(:,r,2) = flxmhcc(:,2)
-        flxm(:,r,3) = flxmhcc(:,3)
-        flxm(:,r,4) = flxmhcc(:,4)
+        flxm(:,r) = flxmhcc(:)/norm
       ENDDO
 
-
-
-      END SUBROUTINE SPLITVOLHCC
+      END SUBROUTINE SPLI_COEFF_REG
 
 
       SUBROUTINE MERGEVOLHCC(nn,nr,nb_reg,nx,ny,nz,
-     &                  list_cube_reg,pixel_to_cmpregion,
+     &                  pixel_to_cmpregion, bary,
      &                  aflx, coeffhcc)
 
       IMPLICIT NONE
@@ -649,19 +635,13 @@
       INTEGER, PARAMETER :: nc=4
  
       INTEGER, INTENT(IN) :: nn, nr, nb_reg, nx,ny,nz
-      INTEGER, INTENT(IN) :: list_cube_reg(2,3,nb_reg)
       INTEGER, INTENT(IN) :: pixel_to_cmpregion(nr)
       REAL, INTENT(IN)    :: aflx(nn,nr,nc)
+      REAL, INTENT(IN)    :: bary(3,nb_reg)
 
       REAL, INTENT(INOUT) :: coeffhcc(nn,nc,nb_reg)
 
       INTEGER :: x,y,z,r,reg
-
-      INTEGER :: itot(nb_reg),jtot(nb_reg),ktot(nb_reg)
-
-      itot(:) = (list_cube_reg(2,1,:) - list_cube_reg(1,1,:))/2
-      jtot(:) = (list_cube_reg(2,2,:) - list_cube_reg(1,2,:))/2
-      ktot(:) = (list_cube_reg(2,3,:) - list_cube_reg(1,3,:))/2
 
       DO z=1,nz
       DO y=1,ny
@@ -669,114 +649,94 @@
         r = ((z-1)*ny + (y-1))*nx + x 
         reg = pixel_to_cmpregion(r)
         coeffhcc(:,1,reg) = coeffhcc(:,1,reg) + aflx(:,r,1)
+
         coeffhcc(:,2,reg) = coeffhcc(:,2,reg) + ( aflx(:,r,2)
-     &        + aflx(:,r,1)*(2*x - itot(reg)) )/itot(reg)
+     &        + aflx(:,r,1)*(x - bary(1,reg)) )/nx
+
         coeffhcc(:,3,reg) = coeffhcc(:,3,reg) + ( aflx(:,r,3)
-     &        + aflx(:,r,1)*(2*y - jtot(reg)) )/jtot(reg) 
+     &        + aflx(:,r,1)*(y - bary(2,reg)) )/ny
+
         coeffhcc(:,4,reg) = coeffhcc(:,4,reg) + ( aflx(:,r,4)
-     &        + aflx(:,r,1)*(2*z - ktot(reg)) )/ktot(reg)
+     &        + aflx(:,r,1)*(z - bary(3,reg)) )/nz
           ENDDO
         ENDDO
       ENDDO
 
       DO reg=1,nb_reg
-        coeffhcc(:,:,reg) = coeffhcc(:,:,reg)/
-     &                           (itot(reg)*jtot(reg)*ktot(reg))
+        coeffhcc(:,:,reg) = coeffhcc(:,:,reg)/(nx*ny*nz)
       ENDDO
 
       END SUBROUTINE MERGEVOLHCC
 
 
       SUBROUTINE MERGEBOUNDHCC(nn,nsurf,nx,ny,nz,
-     &                  nbfx, nbfy, nbfz, list_square_surf,
+     &                  bary, nbfx, nbfy, nbfz,
      &                  x_pixel, y_pixel, z_pixel, 
-     &                  list_oct_surf, 
      &                  bflx,bfly,bflz,coeffhcc)     
      
       IMPLICIT NONE
 
       INTEGER, PARAMETER :: nb=3
-
       INTEGER, INTENT(IN) :: nn,nsurf,nx,ny,nz
       INTEGER, INTENT(IN) :: nbfx,nbfy,nbfz
-      INTEGER, INTENT(IN) :: x_pixel(nbfx,2),
-     &                       y_pixel(nbfy,2),
-     &                       z_pixel(nbfz,2)
-
-
-      INTEGER, INTENT(IN) :: list_oct_surf(nsurf) ! list of incoming surfaces for the octant
-      INTEGER, INTENT(IN) :: list_square_surf(2,2,nsurf,2)
-
+      INTEGER, INTENT(IN) :: x_pixel(nbfx),
+     &                       y_pixel(nbfy),
+     &                       z_pixel(nbfz)
+      REAL, INTENT(IN) :: bary(2,nsurf)
       REAL, INTENT(INOUT) :: coeffhcc(nn,nb,nsurf) 
-      REAL, INTENT(IN) :: bflx(nn,nb,nbfx,2),
-     &                    bfly(nn,nb,nbfy,2),
-     &                    bflz(nn,nb,nbfz,2)
+      REAL, INTENT(IN) :: bflx(nn,nb,nbfx),
+     &                    bfly(nn,nb,nbfy),
+     &                    bflz(nn,nb,nbfz)
 
       INTEGER :: s,x,y,z,i
-      INTEGER :: atot(nsurf,2), btot(nsurf,2)
-      
-      atot(:,:) = list_square_surf(2,1,:,:)-list_square_surf(1,1,:,:) +1
-      btot(:,:) = list_square_surf(2,2,:,:)-list_square_surf(1,2,:,:) +1
 
 
       DO y=1,ny
       DO z=1,nz
         i = (y + (z-1)*ny)
-        s=x_pixel(i,1)
-        coeffhcc(:,1,s) = coeffhcc(:,1,s) + bflx(:,1,i,1)
-        coeffhcc(:,2,s) = coeffhcc(:,2,s) + (bflx(:,2,i,1)
-     &      + bflx(:,1,i,1)*(2*y-atot(s,1)))/atot(s,1)
-        coeffhcc(:,3,s) = coeffhcc(:,3,s) + (bflx(:,3,i,1)
-     &      + bflx(:,1,i,1)*(2*z-btot(s,1)))/btot(s,1)
+        s=x_pixel(i)
+        coeffhcc(:,1,s) = coeffhcc(:,1,s) + bflx(:,1,i)
 
-        s=x_pixel(i,2)
-        coeffhcc(:,1,s) = coeffhcc(:,1,s) + bflx(:,1,i,2)
-        coeffhcc(:,2,s) = coeffhcc(:,2,s) + (bflx(:,2,i,2)
-     &      + bflx(:,1,i,2)*(2*y-atot(s,2)))/atot(s,2)
-        coeffhcc(:,3,s) = coeffhcc(:,3,s) + (bflx(:,3,i,2)
-     &      + bflx(:,1,i,2)*(2*z-btot(s,2)))/btot(s,2)
+        coeffhcc(:,2,s) = coeffhcc(:,2,s) + (bflx(:,2,i)
+     &      + bflx(:,1,i)*(y - bary(1,s)))/ny
 
+        coeffhcc(:,3,s) = coeffhcc(:,3,s) + (bflx(:,3,i)
+     &      + bflx(:,1,i)*(z - bary(2,s)))/nz
       ENDDO
       ENDDO
 
       DO x=1,nx
       DO z=1,nz
         i = (x + (z-1)*nx)
-        s=y_pixel(i,1)
-        coeffhcc(:,1,s) = coeffhcc(:,1,s) + bfly(:,1,i,1)
-        coeffhcc(:,2,s) = coeffhcc(:,2,s) + (bfly(:,2,i,1)
-     &      + bfly(:,1,i,1)*(2*x-atot(s,1)))/atot(s,1)
-        coeffhcc(:,3,s) = coeffhcc(:,3,s) + (bfly(:,3,i,1)
-     &      + bfly(:,1,i,1)*(2*z-btot(s,1)))/btot(s,1)
+        s=y_pixel(i)
+        coeffhcc(:,1,s) = coeffhcc(:,1,s) + bfly(:,1,i)
 
-        s=y_pixel(i,2)
-        coeffhcc(:,1,s) = coeffhcc(:,1,s) + bfly(:,1,i,2)
-        coeffhcc(:,2,s) = coeffhcc(:,2,s) + (bfly(:,2,i,2)
-     &      + bfly(:,1,i,2)*(2*x-atot(s,2)))/atot(s,2)
-        coeffhcc(:,3,s) = coeffhcc(:,3,s) + (bfly(:,3,i,2)
-     &      + bfly(:,1,i,2)*(2*z-btot(s,2)))/btot(s,2)
+        coeffhcc(:,2,s) = coeffhcc(:,2,s) + (bfly(:,2,i)
+     &      + bfly(:,1,i)*(x-bary(1,s)))/nx
 
+        coeffhcc(:,3,s) = coeffhcc(:,3,s) + (bfly(:,3,i)
+     &      + bfly(:,1,i)*(z-bary(2,s)))/nz
       ENDDO
       ENDDO
 
       DO x=1,nx
       DO y=1,ny
         i = (x + (y-1)*nx)
-        s=z_pixel(i,1)
-        coeffhcc(:,1,s) = coeffhcc(:,1,s) + bflz(:,1,i,1)
-        coeffhcc(:,2,s) = coeffhcc(:,2,s) + (bflz(:,2,i,1)
-     &      + bflz(:,1,i,1)*(2*x-atot(s,1)))/atot(s,1)
-        coeffhcc(:,3,s) = coeffhcc(:,3,s) + (bflz(:,3,i,1)
-     &      + bflz(:,1,i,1)*(2*y-btot(s,1)))/btot(s,1)
+        s=z_pixel(i)
+        coeffhcc(:,1,s) = coeffhcc(:,1,s) + bflz(:,1,i)
 
-        s=z_pixel(i,2)
-        coeffhcc(:,1,s) = coeffhcc(:,1,s) + bflz(:,1,i,2)
-        coeffhcc(:,2,s) = coeffhcc(:,2,s) + (bflz(:,2,i,2)
-     &      + bflz(:,1,i,2)*(2*x-atot(s,2)))/atot(s,2)
-        coeffhcc(:,3,s) = coeffhcc(:,3,s) + (bflz(:,3,i,2)
-     &      + bflz(:,1,i,2)*(2*y-btot(s,2)))/btot(s,2)
+        coeffhcc(:,2,s) = coeffhcc(:,2,s) + (bflz(:,2,i)
+     &      + bflz(:,1,i)*(x-bary(1,s)))/nx
+
+        coeffhcc(:,3,s) = coeffhcc(:,3,s) + (bflz(:,3,i)
+     &      + bflz(:,1,i)*(y-bary(2,s)))/ny
       ENDDO
       ENDDO
+
+      coeffhcc(:,1,:) = coeffhcc(:,1,:)/nbfx
+      coeffhcc(:,2,:) = coeffhcc(:,2,:)/nbfy
+      coeffhcc(:,3,:) = coeffhcc(:,3,:)/nbfz
+
 
       END SUBROUTINE MERGEBOUNDHCC
         

@@ -21,7 +21,7 @@
        ! input: sing matrices to adapt coefficients to octants 
      &                       sgnc,sgni,sgne,sgnt,
        ! input: auxiliar memory for boundary angular fluxes, angular 
-     &                        asrc,srcm,
+     &                        asrc,
        ! input: pixel-to-medium array 
      &                       zreg, 
        ! output: angular flux moments 
@@ -78,12 +78,13 @@
       INTEGER , DIMENSION(nsur) :: iosurf_map  ! incoming/outgoing surface index per HCC's surface (per octant )
        
       REAL(KIND=8) , DIMENSION(2,nsur) :: sur_centroid  
+      REAL(KIND=8) , DIMENSION(2,nsuo) :: suro_centroid  
+      REAL(KIND=8) , DIMENSION(2,nsui) :: suri_centroid 
+
       REAL(KIND=8) , DIMENSION(3,nr)   :: reg_centroid
       REAL, INTENT(IN)                 :: delt3(3)  ! sides' lengths of the HCC's box 
       
       INTEGER :: pixel_to_cmpregion(npix) ! mapping pixel-to-computational region 
-      INTEGER :: list_square_surf(2,2,nsur) ! square circonsrcit of each surface 
-
         
       ! outputs 
       REAL(KIND=8),INTENT(INOUT), DIMENSION(ng,ndir,nc,nr,nc,nr)   :: Cm
@@ -95,13 +96,11 @@
 
       REAL, ALLOCATABLE :: asrc(:,:,:,:) ! spatial moments of the angular source 
       REAL, ALLOCATABLE :: aflx(:,:,:,:) ! angular flux along the Z-normal surface 
-      REAL, ALLOCATABLE :: bflx(:,:,:,:)   ! boundary angular flux along the X-normal surface 
-      REAL, ALLOCATABLE :: bfly(:,:,:,:)   ! boundary angular flux along the Y-normal surface 
-      REAL, ALLOCATABLE :: bflz(:,:,:,:)   ! boundary angular flux along the Z-normal surface 
+      REAL, ALLOCATABLE :: bflx(:,:,:,:) ! boundary angular flux along the X-normal surface 
+      REAL, ALLOCATABLE :: bfly(:,:,:,:) ! boundary angular flux along the Y-normal surface 
+      REAL, ALLOCATABLE :: bflz(:,:,:,:) ! boundary angular flux along the Z-normal surface 
       REAL, ALLOCATABLE :: asrc0(:,:,:)
 
-      REAL, INTENT(INOUT) :: tmom(ng,ndir,nc,npix), ! source moments
-     &                       srcm(ng,npix,nh,nc) ! 
       INTEGER, INTENT(IN) :: zreg(nphy,npix) ! pixel-to-medium assignment      
       
       ! pixel cross sections bufer 
@@ -123,28 +122,29 @@
       INTEGER,INTENT(IN) :: sgnc(nc,nc,noct),sgni(nc,nbd,noct)
       INTEGER,INTENT(IN) :: sgne(nbd,nc,noct),sgnt(nbd,nbd,noct)
       REAL, INTENT(IN) :: tolcor
+      INTEGER :: normalisation(ndim+1)
       
-
 
       REAL  :: asrcreg(ng,ndir,nr,nc)
       
       ! locals 
-      INTEGER :: npvol, xin,yin,zin, xout,yout,zout, rin,c,b, rout,i,
-     &           sout, cout, bout, sin, lastadd, nn
+      INTEGER :: npvol, xin,yin,zin, xout,yout,zout, rin,c,b, rout,
+     &           sout, cout, bout, sin, lastadd, nn, i,j,k,p,r
 
       LOGICAL :: lgki
 
       REAL(KIND=8), ALLOCATABLE    :: pdslu4(:)
       nn = ng*ndir
       lgki = .FALSE.
-      tolcor = 1.0e-3
+      normalisation = (/ 1,nx,ny,nz /)
+
 
       ALLOCATE(pdslu4(ndir))
-      ALLOCATE(asrc(ng,ndir,npix,nc)) ! spatial moments of the angular source 
-      ALLOCATE(aflx(ng,ndir,npix,nc)) ! angular flux along the Z-normal surface 
-      ALLOCATE(bflx(ng,ndir,nb,nbfx))   ! boundary angular flux along the X-normal surface 
-      ALLOCATE(bfly(ng,ndir,nb,nbfy))   ! boundary angular flux along the Y-normal surface 
-      ALLOCATE(bflz(ng,ndir,nb,nbfz))   ! boundary angular flux along the Z-norma
+      ALLOCATE(asrc(ng,ndir,npix,nc)) 
+      ALLOCATE(aflx(ng,ndir,npix,nc)) 
+      ALLOCATE(bflx(ng,ndir,nb,nbfx)) 
+      ALLOCATE(bfly(ng,ndir,nb,nbfy)) 
+      ALLOCATE(bflz(ng,ndir,nb,nbfz))
       ALLOCATE(asrc0(ng,ndir,nc))
 
       
@@ -172,14 +172,16 @@
         bflx = 0
         bfly = 0
         bflz = 0
-        tmom = 0
-        srcm = 0
         asrc0 = 0
         asrc0(:,:,c) = 1.0
 
-        CALL SPLITVOLHCC(ng*ndir,npix,nx,ny,
-     &                  asrc0,asrc,reg_centroid(:,rin),
-     &                  list_pix(:,:,rin))
+        DO p=1,list_size_reg(rin) 
+            i = list_pix(p,1,rin)
+            j = list_pix(p,2,rin)
+            k = list_pix(p,3,rin)
+            r = i + (j-1)*nx + (k-1)*nx*ny
+            asrc(:,:,r,c) = 1.0/normalisation(c)
+        ENDDO
 
     ! 3- solve the pixel volume source problem 
     ! Construire une fonction plus adaptée !!
@@ -194,19 +196,19 @@
      
         ! 4- fill-in the C and E matrix column
         CALL MERGEVOLHCC(nn,npix,nr,nx,ny,nz,
-     &                   list_cube_reg,pixel_to_cmpregion,
+     &                   pixel_to_cmpregion,reg_centroid,
      &                   aflx, Cm(1,1,1,1,c,rin))
-        
+
         CALL MERGEBOUNDHCC(nn,nsuo,nx,ny,nz,
-     &                      nbfx, nbfy, nbfz, list_square_surf,
-     &                      x_pixel(:,xout), 
-     &                      y_pixel(:,yout),
-     &                      z_pixel(:,zout),
-     &                      list_oct_surf,   
-     &                      bflx(1,1,1,1),
-     &                      bfly(1,1,1,1),
-     &                      bflz(1,1,1,1),
-     &                      Em(1,1,1,1,c,rin))
+     &                     suro_centroid,   
+     &                     nbfx, nbfy, nbfz,
+     &                     x_pixel(:,xout), 
+     &                     y_pixel(:,yout),
+     &                     z_pixel(:,zout),
+     &                     bflx(1,1,1,1),
+     &                     bfly(1,1,1,1),
+     &                     bflz(1,1,1,1),
+     &                     Em(1,1,1,1,c,rin))
         END DO
 
       ENDDO 
@@ -217,85 +219,158 @@
       DO b=1,nb 
          ! 1- contruct boundary-source for the couple of indexes (s,b) 
          ! s = HCC surface, b = spatial surface component 
-      
          ! 2- projection: project the boundary HCC source onto
          ! the pixel boundary support  
          asrc = 0
          bflx = 0
          bfly = 0
          bflz = 0
-         tmom = 0
-         srcm = 0
-         flxm = 0  
-        
+
          DO i=1,nbfx 
-            IF( x_pixel(i,1) == sin) bflx(:,:,b,i,1,:) = 1
-            IF( x_pixel(i,2) == sin) bflx(:,:,b,i,2,:) = 1 
+            IF( x_pixel(i,xin) == sin) bflx(:,:,b,i) = 1/nbfx
          ENDDO
          DO i=1,nbfy 
-            IF( y_pixel(i,1) == sin) bfly(:,:,b,i,1,:) = 1 
-            IF( y_pixel(i,1) == sin) bfly(:,:,b,i,2,:) = 1 
+            IF( y_pixel(i,yin) == sin) bfly(:,:,b,i) = 1/nbfy
          ENDDO
          DO i=1,nbfz 
-            IF( z_pixel(i,1) == sin) bflz(:,:,b,i,1,:) = 1 
-            IF( z_pixel(i,1) == sin) bflz(:,:,b,i,2,:) = 1 
+            IF( z_pixel(i,zin) == sin) bflz(:,:,b,i) = 1/nbfz
          ENDDO 
          
          ! 3- solve the boundary-source pixel problem 
+        
+         CALL SWEEP_ADA_ONE_OCTANT(nn,ng,ndir,nr,nh,
+     &                           nx,ny,nz, delt3,
+     &                           xinc,yinc,zinc, oct,
+     &                           sigt,mu,eta,ksi,w,pdslu4,
+     &                           sgnc,sgni,sgne,sgnt,
+     &                           zreg,asrc,aflx,
+     &                           bflx, bfly, bflz,tolcor)
 
           CALL MERGEVOLHCC(nn,npix,nr,nx,ny,nz,
      &                     list_cube_reg,pixel_to_cmpregion,
-     &                     aflx(:,:,:,:,oct), Im(1,1,1,1,b,sin,oct))
+     &                     aflx, Im(1,1,1,1,b,sin))
 
-         DO i=1,nbfx
-            sout = x_pixel(i)
-            DO bout=1,nb 
-               Tm(:,:, bout, sout, b, sin) = 
-     &          Tm(:,:, bout, sout, b, sin) + bflx(:,:,bout,i,xout) ! FIXME 
-            ENDDO 
-         ENDDO
-         DO i=1,nbfy
-            sout = y_pixel(i)
-            DO bout=1,nb 
-               Tm(:,:, bout, sout, b, sin) = 
-     &          Tm(:,:, bout, sout, b, sin) + bfly(:,:,bout,i,yout) ! FIXME 
-            ENDDO 
-         ENDDO
-         DO i=1,nbfz
-            sout = z_pixel(i)
-            DO bout=1,nb 
-               Tm(:,:, bout, sout, b, sin) = 
-     &          Tm(:,:, bout, sout, b, sin) + bflz(:,:,bout,i,zout) ! FIXME 
-            ENDDO 
-         ENDDO 
+          CALL MERGEBOUNDHCC(nn,nsuo,nx,ny,nz,
+     &                     suro_centroid,   
+     &                     nbfx, nbfy, nbfz,
+     &                     x_pixel(:,xout), 
+     &                     y_pixel(:,yout),
+     &                     z_pixel(:,zout),
+     &                     bflx(1,1,1,1),
+     &                     bfly(1,1,1,1),
+     &                     bflz(1,1,1,1),
+     &                     Tm(1,1,1,1,b,sin))
+         
       ENDDO 
       ENDDO
          
       END SUBROUTINE HCC_COFHCC_PIXEL
 
 
-      SUBROUTINE CIRC_CUBE(nr,npix,list_size_reg,list_pix,list_cube_reg)
+
+      SUBROUTINE BARY_REG(nr, nx,ny,nz,npix,
+     & pixel_to_cmpregion,reg_centroid)
+
+        IMPLICIT NONE
+
+        INTEGER, INTENT(IN) :: nr,npix, nx,ny,nz
+        ! mapping pixel-to-computational region
+        INTEGER, INTENT(IN) :: pixel_to_cmpregion(npix) 
+        REAL(KIND=8), INTENT(INOUT) :: reg_centroid(3,nr) ! centroid of the HCC's regions   
+
+        INTEGER :: r,p,i,j,k
+
+        reg_centroid = 0.0
+
+        DO i=1,nx
+        DO j=1,ny
+        DO k=1,nz
+            p = i + (j-1)*nx + (k-1)*nx*ny
+            r= pixel_to_cmpregion(p)
+            reg_centroid(1,r) = reg_centroid(1,r) + REAL(i,KIND=8)
+            reg_centroid(2,r) = reg_centroid(2,r) + REAL(j,KIND=8)
+            reg_centroid(3,r) = reg_centroid(3,r) + REAL(k,KIND=8)
+        ENDDO
+        ENDDO
+        ENDDO
+
+        reg_centroid(1,:)= reg_centroid(1,:)/nx
+        reg_centroid(3,:)= reg_centroid(2,:)/ny
+        reg_centroid(2,:)= reg_centroid(3,:)/nz
+
+      END SUBROUTINE BARY_REG
+
+      SUBROUTINE BARY_SURF(nsur,nbfx,nbfy,nbfz,
+     &                     nx,ny,nz,
+     &                     x_pixel,y_pixel,z_pixel,
+     &                     xin,yin,zin,nsuo,nsui,
+     &                     sur_centroid,suro_centroid,suri_centroid) 
+
 
       IMPLICIT NONE
 
-      INTEGER, INTENT(IN) :: nr, npix
-      INTEGER, INTENT(IN) :: list_size_reg(nr), list_pix(npix,3,nr)
+      INTEGER, INTENT(IN) :: nsur,nbfx,nbfy,nbfz
+      INTEGER, INTENT(IN) :: nx,ny,nz
+      INTEGER, INTENT(IN) :: xin,yin,zin, nsuo,nsui
+      INTEGER, DIMENSION(nbfy,2), INTENT(IN) :: y_pixel
+      INTEGER, DIMENSION(nbfz,2), INTENT(IN) :: z_pixel
+      INTEGER, DIMENSION(nbfy,2), INTENT(IN) :: x_pixel
 
-      INTEGER, INTENT(OUT) :: list_cube_reg(2,3,nr)
+      REAL(KIND=8), DIMENSION(2,nsur),INTENT(INOUT) :: sur_centroid  
+      REAL(KIND=8), DIMENSION(2,nsuo),INTENT(INOUT) :: suro_centroid  
+      REAL(KIND=8), DIMENSION(2,nsui),INTENT(INOUT) :: suri_centroid 
 
-      INTEGER :: r, maxp
+      INTEGER :: i,j,k,p
 
+       DO j=1,ny
+       DO k=1,nz
+        p = j + (k-1)*ny
+        suro_centroid(1,x_pixel(p,3-xin)) = 
+     &  suro_centroid(1,x_pixel(p,3-xin)) + REAL(i,KIND=8)
+     &                      
+        suro_centroid(2,x_pixel(p,3-xin)) = 
+     &  suro_centroid(2,x_pixel(p,3-xin)) + REAL(j,KIND=8)
 
-      DO r=1,nr
-        maxp = list_size_reg(r)
+        suri_centroid(1,x_pixel(p,xin)) = 
+     &  suri_centroid(1,x_pixel(p,xin)) + REAL(i,KIND=8)
 
-        list_cube_reg(1,1,r) = MINVAL(list_pix(1:maxp,1,r))
-        list_cube_reg(1,2,r) = MINVAL(list_pix(1:maxp,2,r))
-        list_cube_reg(1,3,r) = MINVAL(list_pix(1:maxp,3,r))
-        list_cube_reg(2,1,r) = MAXVAL(list_pix(1:maxp,1,r))
-        list_cube_reg(2,2,r) = MAXVAL(list_pix(1:maxp,2,r))
-        list_cube_reg(2,3,r) = MAXVAL(list_pix(1:maxp,3,r))
+        suri_centroid(2,x_pixel(p,xin)) = 
+     &  suri_centroid(2,x_pixel(p,xin)) + REAL(j,KIND=8)
+       ENDDO
+       ENDDO
 
-      END DO
+       DO i=1,nx
+       DO k=1,nz
+        p = i + (k-1)*ny
+        suro_centroid(1,y_pixel(p,3-yin)) = 
+     &  suro_centroid(1,y_pixel(p,3-yin)) + REAL(i,KIND=8)
+     &                      
+        suro_centroid(2,y_pixel(p,3-yin)) = 
+     &  suro_centroid(2,y_pixel(p,3-yin)) + REAL(k,KIND=8)
 
-      END SUBROUTINE CIRC_CUBE
+        suri_centroid(1,y_pixel(p,yin)) = 
+     &  suri_centroid(1,y_pixel(p,yin)) + REAL(i,KIND=8)
+
+        suri_centroid(2,y_pixel(p,yin)) = 
+     &  suri_centroid(2,y_pixel(p,yin)) + REAL(k,KIND=8)
+       ENDDO
+       ENDDO
+
+       DO i=1,nx
+       DO j=1,ny
+        p = i + (j-1)*ny
+        suro_centroid(1,z_pixel(p,3-zin)) = 
+     &  suro_centroid(1,z_pixel(p,3-zin)) + REAL(i,KIND=8)
+     &                      
+        suro_centroid(2,z_pixel(p,3-zin)) = 
+     &  suro_centroid(2,z_pixel(p,3-zin)) + REAL(j,KIND=8)
+
+        suri_centroid(1,z_pixel(p,zin)) = 
+     &  suri_centroid(1,z_pixel(p,zin)) + REAL(i,KIND=8)
+
+        suri_centroid(2,z_pixel(p,zin)) = 
+     &  suri_centroid(2,z_pixel(p,zin)) + REAL(j,KIND=8)
+       ENDDO
+       ENDDO
+
+      END SUBROUTINE BARY_SURF 

@@ -161,10 +161,9 @@
    !     Level 0 needs to already be computed before entering recursive 
    !     Function
    
-        CALL SRCHOMO0(nn,ng,nr,nx,ny, ndir,
+        CALL SRCHOMO0(nn,nr,nx,ny,
      &                 1,nx,1,ny,1,nz,
-     &                 aflx(:,:,:,oct), w,
-     &                 asrc(:,:,:,oct),asrcm0)
+     &                 zreg,asrc(:,:,:,oct),asrcm0)
 
         CALL ONE_COEF3D(nn,ndir,ng,mu,eta,ksi,
      &                delt3,sigt(:,zreg(1)),
@@ -308,6 +307,7 @@
       INTEGER, INTENT(IN) :: sgnc(nc,nc),sgni(nc,nbd)
       INTEGER, INTENT(IN) :: sgne(nbd,nc),sgnt(nbd,nbd)
       INTEGER, INTENT(IN) :: zreg(nr)
+
       REAL, INTENT(IN)    ::  tolcor
       REAL, INTENT(INOUT) :: asrc(nn,nr,nc)
       REAL, INTENT(INOUT) :: aflx(nn,nr,nc)
@@ -341,19 +341,16 @@
       REAL :: ecoftps(nn,nbd,nc,n8),tcoftps(nn,nbd,nbd,n8)
       REAL :: finc0tps(nn,nb,nb), finc1tps(nn,nb,nb,ns)
 
-      
       fout1 = 0.0
-
-      !   read(*,*)
 
       CALL SRCCOR(ng,ndir,delt3/(2**niv),mu,eta,ksi,asrcm0,
      &       sigt(ng,zreg(((imin-1)*ny + (jmin-1))*nx + kmin)),
      &       errcor,pdslu4)
-
+      
       CALL FILLXSLVL1(ng,nx,ny,
      &                imin,imax,jmin,jmax,kmin,kmax,
      &                zreg,xstlvl1,sigt)
-
+      
       errbnd = errbnd*(delt3(3)**2)/(4**niv)
 
       
@@ -376,7 +373,6 @@
 
       errbnd = 0.0
 
-
       cnt = 0
       group : DO i = 1, ng
       direc : DO j = 1, ndir
@@ -390,8 +386,8 @@
             oksrc = .FALSE.
             EXIT group
         ENDIF
-        ENDDO direc
-        ENDDO group
+      ENDDO direc
+      ENDDO group
 
 
       IF(imax-imin>0 .AND. jmax-jmin>0 
@@ -401,18 +397,19 @@
         ok = .TRUE.
       ENDIF
 
+
       IF (.NOT. ok) THEN 
 ! If the criterion is not satisfied, compute on lvl 1
-        CALL SRCHOMO1(nn,ng,nr,nx,ny, ndir,
+
+        CALL SRCHOMO1(nn,nr,nx,ny,
      &                 imin, imax,jmin,jmax,kmin,kmax,
-     &                 aflx, w, asrc,
-     &                 asrcm1)
+     &                 zreg, asrc,asrcm1)
 
         CALL MERGEBOUND1(nn, ng,nb,
      &                   imin, imax,jmin,jmax,kmin,kmax,
      &                   nx,ny,nz,
      &                   bflx, bfly, bflz, finc1)
-
+    
         CALL EIGHT_COEF3D(nn,ndir,ng,mu,eta,ksi,
      &                    delt3/(2**(niv+1)),xstlvl1,
      &                    sgnc,sgni,sgne,sgnt,
@@ -444,6 +441,7 @@
       ENDIF
       
       IF (ok) THEN
+
 ! If the criterion is satisfied, compute on lvl 0 and 
         IF (niv > 0) THEN
             CALL MERGEBOUND0(nn,nb,
@@ -878,87 +876,3 @@
       nb_cell = nb_cell + 8
 
       END SUBROUTINE RECADA_ONE_OCTANT
-
-
-
-      SUBROUTINE SWEEP_ADA_ONE_OCTANT(nn,ng,ndir,nr,nh,
-     &                             nx,ny,nz, delt3,
-     &                             xinc,yinc,zinc, oct,
-     &                             sigt,mu,eta,ksi,w,pdslu4,
-     &                             sgnc,sgni,sgne,sgnt,
-     &                             zreg,asrc,aflx,
-     &                             bflx, bfly, bflz,tol)
-
-      IMPLICIT NONE 
-
-      INTEGER, PARAMETER :: nc = 4, nb = 3, nbd = 9, n8 = 8, ns = 4
-
-      INTEGER, INTENT(IN) :: nn,ng,ndir,nr,nh,
-     &                       nx,ny,nz,xinc,yinc,zinc,oct
-      REAL, INTENT(IN) :: sigt(ng,*),delt3(3)
-      REAL(KIND=8), INTENT(IN) :: mu(ndir),eta(ndir),ksi(ndir),w(ndir),
-     &                    pdslu4(ndir)
-      INTEGER, INTENT(IN) :: sgnc(nc,nc),sgni(nc,nbd)
-      INTEGER, INTENT(IN) :: sgne(nbd,nc),sgnt(nbd,nbd)
-      INTEGER, INTENT(IN) :: zreg(nr)
-      REAL, INTENT(INOUT) :: bflx(nn,nb,ny*nz),
-     &                       bfly(nn,nb,nx*nz),
-     &                       bflz(nn,nb,nx*ny)
-      REAL, INTENT(IN)    :: tol
-      REAL, INTENT(INOUT) :: asrc(nn,nr,nc)
-      REAL, INTENT(INOUT) :: aflx(nn,nr,nc)
-      
-      REAL, ALLOCATABLE  :: aflx0(:,:), aflx1(:,:,:)
-      REAL, ALLOCATABLE  :: asrcm0(:,:,:), asrcm1(:,:,:,:)
-      REAL, ALLOCATABLE  :: finc1(:,:,:,:), fout1(:,:,:,:)
-      REAL, ALLOCATABLE  :: finc0(:,:,:),    fout0(:,:,:)
-      REAL, ALLOCATABLE  :: ccof(:,:,:),icof(:,:,:)
-      REAL, ALLOCATABLE  :: ecof(:,:,:),tcof(:,:,:)
-      REAL, ALLOCATABLE  :: ccof8(:,:,:,:),icof8(:,:,:,:)
-      REAL, ALLOCATABLE  :: ecof8(:,:,:,:),tcof8(:,:,:,:)
-      REAL, ALLOCATABLE  :: aflxmean(:,:)
-      REAL, ALLOCATABLE  :: xstlvl1(:,:)
-      REAL(KIND=8),ALLOCATABLE  :: errcor(:,:),errmul(:,:)
-
-
-      INTEGER :: i,j,k,r,g,cnt, nb_cell
-      REAL :: errbnd(3), errtot
-      LOGICAL :: ok, oksrc
-
-      ALLOCATE(aflx0(nn,nc), aflx1(nn,nc,n8))
-      ALLOCATE(asrcm0(ng,ndir,nc), asrcm1(ng,ndir,nc,n8))
-      ALLOCATE(finc1(nn,nb,3,ns), fout1(nn,nb,3,ns))
-      ALLOCATE(finc0(nn,nb,3),    fout0(nn,nb,3))
-      ALLOCATE(ccof(nn,nc,nc),icof(nn,nc,nbd))
-      ALLOCATE(ecof(nn,nbd,nc),tcof(nn,nbd,nbd))
-      ALLOCATE(ccof8(nn,nc,nc,n8),icof8(nn,nc,nbd,n8))
-      ALLOCATE(ecof8(nn,nbd,nc,n8),tcof8(nn,nbd,nbd,n8))
-      ALLOCATE(aflxmean(nn,nr))
-      ALLOCATE(xstlvl1(ng,n8))
-      ALLOCATE(errcor(ng, ndir),errmul(ng, ndir))
-
-      nb_cell = 0
-      ok =.FALSE.
-      oksrc = .FALSE.
-      errtot = 0.0
-      errbnd = 0.0
-
-      CALL RECADA_ONE_OCTANT(nn,ng,ndir,nr,nh,
-     &                       nx,ny,nz,
-     &                       xinc,yinc,zinc, oct,
-     &                       1,nx,1,ny,1,nz,0,
-     &                       sigt, xstlvl1,
-     &                       mu,eta,ksi,w,pdslu4,
-     &                       sgnc,sgni,sgne,sgnt,
-     &                       zreg,asrc,aflx,
-     &                       bflx, bfly, bflz,
-     &                       aflx0, aflx1,
-     &                       asrcm0, asrcm1,finc0,finc1,
-     &                       fout0,fout1,ccof,icof,ecof,tcof,
-     &                       ccof8,icof8,ecof8,tcof8,tol,
-     &                       errcor,errmul,ok,delt3,i,j,k,r,
-     &                       nb_cell,g,cnt,oksrc,errtot,aflxmean,
-     &                       errbnd)
-
-
-      END SUBROUTINE SWEEP_ADA_ONE_OCTANT

@@ -193,11 +193,11 @@
     
       IMPLICIT NONE
    
-! Define the projection of the angular flux on the boundary
-! on level 1 and level 0
-! finc0(nn, nb, nb): on level 0 for each group for each direction
-! on each 3 spatial component on each 3 incoming face
-! finc1(nn, nb, nb, ns) same but on level 1 and for each 4 subfaces
+      ! Define the projection of the angular flux on the boundary
+      ! on level 1 and level 0
+      ! finc0(nn, nb, nb): on level 0 for each group for each direction
+      ! on each 3 spatial component on each 3 incoming face
+      ! finc1(nn, nb, nb, ns) same but on level 1 and for each 4 subfaces
          
       INTEGER, INTENT(IN) :: nn,nb 
       INTEGER, INTENT(IN) :: imin, imax,jmin,jmax,kmin,kmax, nx,ny,nz
@@ -594,36 +594,98 @@
 
 !-----------------------------------------------------------------------
 
-      SUBROUTINE SPLI_COEFF_REG(nn,nr,npix_reg,nx,ny,norm,
-     &                  flxmhcc,flxm, list_pix)
+      SUBROUTINE SPLIT_SRC_REG(nn,nr,nx,ny,nz,rin,
+     &                         aflxhcc,aflxpix, pixel_to_cmpregion)
 
-!      ONLY WORK FOR ONE c
-!      nr number of pixel in hcc, npix nb of pixel in the region
-!      imin, imax ... coordinates of the cube circonscrit of the region
-!      flxmhcc moments of the hcc flux
-!      bary barycenter of the region
-!      list_pix list of the pixel in the region
-     
       IMPLICIT NONE
 
       INTEGER, PARAMETER :: nc=4
-      INTEGER, INTENT(IN) :: nn, nr, npix_reg, nx,ny
-      REAL, INTENT(IN)    :: flxmhcc(nn)
-      REAL, INTENT(INOUT) :: flxm(nn,nr)
-      INTEGER, INTENT(IN) :: list_pix(npix_reg,3)
-      INTEGER, INTENT(IN) :: norm
+      INTEGER, INTENT(IN) :: nn, nr, nx,ny,nz, rin
+      REAL, INTENT(IN)    :: aflxhcc(nn,nc)
+      REAL, INTENT(INOUT) :: aflxpix(nn,nr,nc)
+      INTEGER, INTENT(IN) :: pixel_to_cmpregion(nr)
 
-      INTEGER :: p,i,j,k,r
+      INTEGER :: i,j,k,r
 
-      DO p=1,npix_reg 
-        i = list_pix(p,1)
-        j = list_pix(p,2)
-        k = list_pix(p,3)
-        r = i + (j-1)*nx + (k-1)*nx*ny
-        flxm(:,r) = flxmhcc(:)/norm
+      DO i=1,nx
+      DO j=1,ny
+      DO k=1,nz
+        r = ((k-1)*ny + (j-1))*nx + i
+        IF (pixel_to_cmpregion(r) == rin) THEN
+            aflxpix(:,r,1) = aflxhcc(:,1)
+     &                + 3.0*aflxhcc(:,2)*(2*i-nx-1)/nx
+     &                + 3.0*aflxhcc(:,3)*(2*j-nx-1)/ny
+     &                + 3.0*aflxhcc(:,4)*(2*k-nx-1)/nz
+            aflxpix(:,r,2) = aflxhcc(:,2)/nx
+            aflxpix(:,r,3) = aflxhcc(:,3)/ny
+            aflxpix(:,r,4) = aflxhcc(:,4)/nz
+        END IF
+      ENDDO
+      ENDDO
       ENDDO
 
-      END SUBROUTINE SPLI_COEFF_REG
+      END SUBROUTINE SPLIT_SRC_REG
+
+
+      SUBROUTINE SPLIT_BOUND_SUR(nn,nr,nx,ny,nz,sin,
+     &                        x_pixel, y_pixel, z_pixel,bfxhcc,
+     &                        bflx,bfly,bflz)
+   
+      IMPLICIT NONE
+   
+      INTEGER, PARAMETER  :: nb=3
+      INTEGER, INTENT(IN) :: nn, nr, nx,ny,nz, sin
+      REAL, INTENT(IN)    :: bfxhcc(nn,nb)
+      REAL, INTENT(INOUT) :: bflx(nn,nb,ny,nz),
+     &                       bfly(nn,nb,nx,nz),
+     &                       bflz(nn,nb,nx,ny)
+      INTEGER, INTENT(IN) :: x_pixel(*), y_pixel(*), z_pixel(*)
+   
+      INTEGER :: i,j,k,s
+
+
+      DO j=1,ny
+      DO k=1,nz
+        s = (k-1)*ny + j
+        IF( x_pixel(s) == sin) THEN
+            bflx(:,1,j,k) = bfxhcc(:,1)
+     &        + 3.0*bfxhcc(:,2)*(2.0*j-ny-1)/ny
+     &        + 3.0*bfxhcc(:,3)*(2.0*k-nz-1)/nz
+            bflx(:,2,j,k) = bfxhcc(:,2)/ny
+            bflx(:,3,j,k) = bfxhcc(:,3)/nz  
+        ENDIF
+      ENDDO
+      ENDDO
+
+      DO i=1,nx
+      DO k=1,nz
+        s = (k-1)*nx + i
+        IF( y_pixel(s) == sin) THEN
+            bfly(:,1,i,k) = bfxhcc(:,1)
+     &        + 3.0*bfxhcc(:,2)*(2.0*i-nx-1)/nx
+     &        + 3.0*bfxhcc(:,3)*(2.0*k-nz-1)/nz
+            bfly(:,2,i,k) = bfxhcc(:,2)/nx
+            bfly(:,3,i,k) = bfxhcc(:,3)/nz  
+         ENDIF
+      ENDDO
+      ENDDO
+
+      DO i=1,nx
+      DO j=1,nz
+        s = (i-1)*nx + j
+        IF( z_pixel(s) == sin) THEN
+            bflz(:,1,i,j) = bfxhcc(:,1)
+     &        + 3.0*bfxhcc(:,2)*(2.0*i-nx-1)/nx
+     &        + 3.0*bfxhcc(:,3)*(2.0*j-ny-1)/ny
+            bflz(:,2,i,j) = bfxhcc(:,2)/nx
+            bflz(:,3,i,j) = bfxhcc(:,3)/ny  
+         ENDIF
+      ENDDO 
+      ENDDO
+   
+   
+      END SUBROUTINE SPLIT_BOUND_SUR
+
 
 
       SUBROUTINE MERGEVOLHCC(nn,nr,nb_reg,nx,ny,nz,
@@ -633,12 +695,10 @@
       IMPLICIT NONE
 
       INTEGER, PARAMETER :: nc=4
- 
       INTEGER, INTENT(IN) :: nn, nr, nb_reg, nx,ny,nz
       INTEGER, INTENT(IN) :: pixel_to_cmpregion(nr)
       REAL, INTENT(IN)    :: aflx(nn,nr,nc)
       REAL, INTENT(IN)    :: bary(3,nb_reg)
-
       REAL, INTENT(INOUT) :: coeffhcc(nn,nc,nb_reg)
 
       INTEGER :: x,y,z,r,reg
@@ -669,21 +729,23 @@
       END SUBROUTINE MERGEVOLHCC
 
 
-      SUBROUTINE MERGEBOUNDHCC(nn,nsurf,nx,ny,nz,
-     &                  bary, nbfx, nbfy, nbfz,
+
+      SUBROUTINE MERGEBOUNDHCC(nn,nsui,nsuo,nx,ny,nz,
+     &                  bary, iosurf_map, nbfx, nbfy, nbfz,
      &                  x_pixel, y_pixel, z_pixel, 
      &                  bflx,bfly,bflz,coeffhcc)     
      
       IMPLICIT NONE
 
-      INTEGER, PARAMETER :: nb=3
-      INTEGER, INTENT(IN) :: nn,nsurf,nx,ny,nz
+      INTEGER, PARAMETER :: nb=3, out=2
+      INTEGER, INTENT(IN) :: nn,nsui,nsuo,nx,ny,nz
+      INTEGER, INTENT(IN) :: iosurf_map(nsui+nsuo,2)
       INTEGER, INTENT(IN) :: nbfx,nbfy,nbfz
       INTEGER, INTENT(IN) :: x_pixel(nbfx),
      &                       y_pixel(nbfy),
      &                       z_pixel(nbfz)
-      REAL, INTENT(IN) :: bary(2,nsurf)
-      REAL, INTENT(INOUT) :: coeffhcc(nn,nb,nsurf) 
+      REAL, INTENT(IN) :: bary(2,nsui+nsuo)
+      REAL, INTENT(INOUT) :: coeffhcc(nn,nb,nsuo) 
       REAL, INTENT(IN) :: bflx(nn,nb,nbfx),
      &                    bfly(nn,nb,nbfy),
      &                    bflz(nn,nb,nbfz)
@@ -695,13 +757,16 @@
       DO z=1,nz
         i = (y + (z-1)*ny)
         s=x_pixel(i)
-        coeffhcc(:,1,s) = coeffhcc(:,1,s) + bflx(:,1,i)
+            coeffhcc(:,1,iosurf_map(s,1)) = 
+     &      coeffhcc(:,1,iosurf_map(s,1)) + bflx(:,1,i)
 
-        coeffhcc(:,2,s) = coeffhcc(:,2,s) + (bflx(:,2,i)
-     &      + bflx(:,1,i)*(y - bary(1,s)))/ny
+            coeffhcc(:,2,iosurf_map(s,1)) = 
+     &      coeffhcc(:,2,iosurf_map(s,1)) + (bflx(:,2,i)
+     &             + bflx(:,1,i)*(y - bary(1,s)))/ny
 
-        coeffhcc(:,3,s) = coeffhcc(:,3,s) + (bflx(:,3,i)
-     &      + bflx(:,1,i)*(z - bary(2,s)))/nz
+            coeffhcc(:,3,iosurf_map(s,1)) = 
+     &      coeffhcc(:,3,iosurf_map(s,1)) + (bflx(:,3,i)
+     &             + bflx(:,1,i)*(z - bary(2,s)))/nz
       ENDDO
       ENDDO
 
@@ -709,13 +774,16 @@
       DO z=1,nz
         i = (x + (z-1)*nx)
         s=y_pixel(i)
-        coeffhcc(:,1,s) = coeffhcc(:,1,s) + bfly(:,1,i)
-
-        coeffhcc(:,2,s) = coeffhcc(:,2,s) + (bfly(:,2,i)
-     &      + bfly(:,1,i)*(x-bary(1,s)))/nx
-
-        coeffhcc(:,3,s) = coeffhcc(:,3,s) + (bfly(:,3,i)
-     &      + bfly(:,1,i)*(z-bary(2,s)))/nz
+           coeffhcc(:,1,iosurf_map(s,1)) = coeffhcc(:,1,iosurf_map(s,1)) 
+     &                                   + bfly(:,1,i)
+   
+           coeffhcc(:,2,iosurf_map(s,1)) = coeffhcc(:,2,iosurf_map(s,1)) 
+     &         + (bfly(:,2,i)
+     &         + bfly(:,1,i)*(x-bary(1,s)))/nx
+   
+           coeffhcc(:,3,iosurf_map(s,1)) = coeffhcc(:,3,iosurf_map(s,1)) 
+     &         + (bfly(:,3,i)
+     &         + bfly(:,1,i)*(z-bary(2,s)))/nz
       ENDDO
       ENDDO
 
@@ -723,12 +791,15 @@
       DO y=1,ny
         i = (x + (y-1)*nx)
         s=z_pixel(i)
-        coeffhcc(:,1,s) = coeffhcc(:,1,s) + bflz(:,1,i)
+        coeffhcc(:,1,iosurf_map(s,1)) = coeffhcc(:,1,iosurf_map(s,1)) 
+     &                                + bflz(:,1,i)
 
-        coeffhcc(:,2,s) = coeffhcc(:,2,s) + (bflz(:,2,i)
+        coeffhcc(:,2,iosurf_map(s,1)) = coeffhcc(:,2,iosurf_map(s,1)) 
+     &     + (bflz(:,2,i)
      &      + bflz(:,1,i)*(x-bary(1,s)))/nx
 
-        coeffhcc(:,3,s) = coeffhcc(:,3,s) + (bflz(:,3,i)
+        coeffhcc(:,3,iosurf_map(s,1)) = coeffhcc(:,3,iosurf_map(s,1)) 
+     &      + (bflz(:,3,i)
      &      + bflz(:,1,i)*(y-bary(2,s)))/ny
       ENDDO
       ENDDO
@@ -739,4 +810,9 @@
 
 
       END SUBROUTINE MERGEBOUNDHCC
+
+!-----------------------------------------------------------------------
+
+
+
         

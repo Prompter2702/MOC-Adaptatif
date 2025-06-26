@@ -48,12 +48,15 @@
 
 !   For each direction in the octant and for each energy group 
 
+
       cnt = 0 
       DO d=1,ndir
         DO g=1,ng
            ox=2*mu(d)/delt(1)
            oy=2*eta(d)/delt(2)
            oz=2*ksi(d)/delt(3)
+
+
 
 !           Coefficient for LL Method of Characteristics (simplified).
             CALL COF3C1(ox,oy,oz,stot(g),

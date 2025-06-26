@@ -7,7 +7,7 @@
       CONTAINS
 
       SUBROUTINE SRCCOR(ng, ndir, delt3, mu,eta, ksi,
-     &                       srcm, sigt, err,pdslu4)
+     &                     srcm, sigt, err,pdslu4)
         
       IMPLICIT NONE
 

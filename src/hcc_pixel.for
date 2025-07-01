@@ -6,7 +6,7 @@
      &                       sur_centroid,
      &                       reg_centroid,
      &                       pixel_to_cmpregion, iosurf_map, 
-     &                       list_size_reg,
+     &                       list_size_reg,cmpreg_to_pixel,size_sum_reg,
         ! inputs: dimensions for the pixel_grif
      &                       npix,nh,nmat,
      &                       nbd,nbfx,nbfy,nbfz,
@@ -138,7 +138,7 @@
       REAL, INTENT(INOUT) :: aflxmean(ng*ndir,npix)
       REAL, INTENT(INOUT) :: xstlvl1(ng,n8)
       REAL(KIND=8), INTENT(INOUT) :: errcor(ng, ndir),errmul(ng, ndir)
-
+      INTEGER, INTENT(IN) :: cmpreg_to_pixel(npix),size_sum_reg(nreg)
 
 
       INTEGER, INTENT(IN) :: zreg(npix) ! pixel-to-medium assignment      
@@ -173,7 +173,6 @@
       INTEGER :: npvol, xin,yin,zin, xout,yout,zout, rin,c,b, rout,
      &           sout, cout, bout, sin, lastadd, nn, p, cnt,g, i,j,k,r
       LOGICAL :: lgki
-
 
 
       nn = ng*ndir
@@ -214,8 +213,9 @@
         asrc0 = 0
         asrc0(:,:,c) = 1.0
 
-        CALL SPLIT_SRC_REG(nn,npix,nx,ny,nz,rin,
-     &                     asrc0,asrc,pixel_to_cmpregion)
+        CALL SPLIT_SRC_REG(ng*ndir,npix,nx,ny,nz,list_size_reg(rin),rin,
+     &                     asrc0,asrc,cmpreg_to_pixel,size_sum_reg(rin),
+     &                     reg_centroid(:,rin))
 
     ! 3- solve the pixel volume source problem 
     ! Construire une fonction plus adaptée !!
@@ -224,24 +224,22 @@
         errtot = 0.0
         errbnd = 0.0
 
-
-        CALL SRCHOMO0(nn,npix,nx,ny,
+        CALL SRCHOMO0(ng*ndir,npix,nx,ny,
      &                 1,nx,1,ny,1,nz,
      &                 zreg,asrc,asrcm0)
-
-        CALL ONE_COEF3D(nn,ndir,ng,mu,eta,ksi,
+        CALL ONE_COEF3D(ng*ndir,ndir,ng,mu,eta,ksi,
      &                delt3,sigt(:,zreg(1)),
      &                sgnc,sgni,sgne,sgnt,
      &                ccof,icof,ecof,tcof)
-        CALL MERGEBOUND0(nn,nb,
+        CALL MERGEBOUND0(ng*ndir,nb,
      &                   1,nx,1,ny,1,nz,
      &                   nx,ny,nz,
      &                   bflx, bfly,bflz,finc0)
-        CALL SWEEP_ONEREGION(nn,2,asrcm0, finc0, aflx0, fout0,
+
+        CALL SWEEP_ONEREGION(ng*ndir,2,asrcm0, finc0, aflx0, fout0,
      &                          ccof,icof,ecof,tcof)
 
-
-       CALL RECADA_ONE_OCTANT(nn,ng,ndir,npix,nh,
+       CALL RECADA_ONE_OCTANT(ng*ndir,ng,ndir,npix,nh,
      &                        nx,ny,nz,
      &                        xinc,yinc,zinc, oct,
      &                        1,nx,1,ny,1,nz,0,
@@ -258,13 +256,11 @@
      &                        nb_cell,g,cnt,oksrc,errtot,aflxmean,
      &                        errbnd)
 
-
         ! 4- fill-in the C and E matrix column
-        CALL MERGEVOLHCC(nn,npix,nreg,nx,ny,nz,
+        CALL MERGEVOLHCC(ng,ndir,npix,nreg,nx,ny,nz,
      &                   pixel_to_cmpregion,reg_centroid,
-     &                   aflx, Cm(1,1,1,1,c,rin))
-
-
+     &                   aflx, Cm(1,1,1,1,c,rin) )
+        
         CALL MERGEBOUNDHCC(nn,nsui,nsuo,nx,ny,nz,
      &                     sur_centroid,iosurf_map,
      &                     nbfx, nbfy, nbfz,
@@ -297,11 +293,11 @@
         bflxsur = 0.0
         bflxsur(:,:,b) = 1.0
 
-        CALL SPLIT_BOUND_SUR(nn,npix,nx,ny,nz,sin,
+        CALL SPLIT_BOUND_SUR(nn,nx,ny,nz,sin,
      &                       x_pixel(:,xin),
      &                       y_pixel(:,yin),
      &                       z_pixel(:,zin),bflxsur,
-     &                       bflx,bfly,bflz)
+     &                       bflx,bfly,bflz, sur_centroid(:,sin))
          
         ! 3- solve the boundary-source pixel problem 
         ok =.FALSE.
@@ -324,10 +320,6 @@
      &                         finc0, aflx0, fout0,
      &                         ccof,icof,ecof,tcof)
 
-
-        print *,"finc0", finc0
-        print *,"fout0", fout0
-
         CALL RECADA_ONE_OCTANT(nn,ng,ndir,npix,nh,
      &                       nx,ny,nz,
      &                       xinc,yinc,zinc, oct,
@@ -345,8 +337,7 @@
      &                       nb_cell,g,cnt,oksrc,errtot,aflxmean,
      &                       errbnd)
 
-
-          CALL MERGEVOLHCC(nn,npix,nreg,nx,ny,nz,
+          CALL MERGEVOLHCC(ng,ndir,npix,nreg,nx,ny,nz,
      &                     pixel_to_cmpregion,reg_centroid,
      &                     aflx, Im(1,1,1,1,b,iosurf_map(sin,1)))
 
@@ -361,6 +352,7 @@
      &                     bfly(1,1,1,1),
      &                     bflz(1,1,1,1),
      &                     Tm(1,1,1,1,b,iosurf_map(sin,1)))
+
          
       ENDDO 
       ENDDO
@@ -401,7 +393,6 @@
       INTEGER, INTENT(IN) :: ng,nreg,nsur,nsui,nsuo,nn
       INTEGER, INTENT(IN) :: nc,nb,nphy
       INTEGER, INTENT(IN) :: pixel_to_cmpregion(npix) ! mapping pixel-to-computational region
-      INTEGER, INTENT(IN) :: list_size_reg(nreg)
       INTEGER, INTENT(IN) :: npix,nh,nmat
       INTEGER, INTENT(IN) :: nbd,nbfx,nbfy,nbfz
       INTEGER, INTENT(IN) :: nx,ny,nz
@@ -416,8 +407,9 @@
       INTEGER, INTENT(IN) :: iosurf_map(nsur,2,noct)
       INTEGER, INTENT(IN) :: sgnc(nc,nc,noct),sgni(nc,nbd,noct)
       INTEGER, INTENT(IN) :: sgne(nc,nbd,noct),sgnt(nbd,nbd,noct)
-
-
+      
+      
+      INTEGER, INTENT(INOUT) :: list_size_reg(nreg)
       REAL, INTENT(INOUT) :: asrc(ng,ndir,npix,nc) 
       REAL, INTENT(INOUT) :: aflx(ng,ndir,npix,nc) 
       REAL, INTENT(INOUT) :: bflx(ng,ndir,nb,nbfx) 
@@ -440,16 +432,14 @@
       REAL(KIND=8), INTENT(INOUT)  :: errcor(ng, ndir),errmul(ng, ndir)
       
 
-      REAL(KIND=8), INTENT(INOUT)  :: Cm(ng,ndir,nc,nreg,nc,nreg,noct) 
-      REAL(KIND=8), INTENT(INOUT)  :: Em(ng,ndir,nb,nsuo,nc,nreg,noct) 
-      REAL(KIND=8), INTENT(INOUT)  :: Im(ng,ndir,nc,nreg,nb,nsui,noct) 
-      REAL(KIND=8), INTENT(INOUT)  :: Tm(ng,ndir,nb,nsuo,nb,nsui,noct)
+      REAL(KIND=8), INTENT(INOUT)  :: Cm(ng,ndir,nc, nreg,nc,nreg,noct) 
+      REAL(KIND=8), INTENT(INOUT)  :: Em(ng,ndir,nb, nsuo,nc,nreg,noct) 
+      REAL(KIND=8), INTENT(INOUT)  :: Im(ng,ndir,nc, nreg,nb,nsui,noct) 
+      REAL(KIND=8), INTENT(INOUT)  :: Tm(ng,ndir,nb, nsuo,nb,nsui,noct)
 
 
       REAL(KIND=8), DIMENSION(3,nreg) :: reg_centroid 
       REAL(KIND=8), DIMENSION(2,nsur) :: sur_centroid  
-      REAL(KIND=8), DIMENSION(2,nsuo) :: suro_centroid  
-      REAL(KIND=8), DIMENSION(2,nsui) :: suri_centroid 
       REAL, DIMENSION(ng,n8)  :: xstlvl1
 
 
@@ -459,22 +449,23 @@
       REAL(KIND=8), INTENT(INOUT) :: pdslu4(ndir)
 
       INTEGER :: oct
+      INTEGER, ALLOCATABLE :: cmpreg_to_pixel(:), size_sum_reg(:) ! mapping computational region to pixel
+
+      
+      ALLOCATE(cmpreg_to_pixel(npix))
+      ALLOCATE(size_sum_reg(nreg))
 
 
-      CALL BARY_REG(nreg, nx,ny,nz,npix,
-     &              pixel_to_cmpregion,reg_centroid)
+      CALL BARY_REG(nreg, nx,ny,nz,npix,pixel_to_cmpregion,
+     &              reg_centroid,list_size_reg)
+
+      CALL CMPREG_TO_PIX(nreg,npix, list_size_reg, pixel_to_cmpregion, 
+     &                        size_sum_reg,cmpreg_to_pixel )
 
       CALL BARY_SURF(nsur,nbfx,nbfy,nbfz,
      &                     nx,ny,nz,
      &                     x_pixel,y_pixel,z_pixel,
      &                     sur_centroid) 
-
-
-
-      print *,"reg_centroid", reg_centroid
-      print *,"sur_centroid", sur_centroid
-
-      read(*,*)
 
       DO oct=1,noct
 
@@ -484,7 +475,7 @@
      &                       sur_centroid,
      &                       reg_centroid,
      &                       pixel_to_cmpregion, iosurf_map(1,1,oct),
-     &                       list_size_reg,
+     &                       list_size_reg,cmpreg_to_pixel,size_sum_reg,
      &                       npix,nh,nmat,
      &                       nbd,nbfx,nbfy,nbfz,
      &                       nx,ny,nz,
@@ -495,10 +486,10 @@
      &                       sgnc(:,:,oct),sgni(:,:,oct),
      &                       sgne(:,:,oct),sgnt(:,:,oct),
      &                       asrc,zreg, aflx,delt3,tolcor,
-     &                       Cm(:,:,:,:,:,:,oct),
-     &                       Im(:,:,:,:,:,:,oct),
-     &                       Em(:,:,:,:,:,:,oct),
-     &                       Tm(:,:,:,:,:,:,oct),
+     &                       Cm(:,:,:, :,:,:,oct),
+     &                       Im(:,:,:, :,:,:,oct),
+     &                       Em(:,:,:, :,:,:,oct),
+     &                       Tm(:,:,:, :,:,:,oct),
      &                       pdslu4,
      &                       asrc0,aflx0, aflx1,
      &                       asrcm0, asrcm1,
@@ -517,8 +508,8 @@
       !-----------------------------------------------------------------
 
 
-      SUBROUTINE BARY_REG(nreg, nx,ny,nz,npix,
-     &                    pixel_to_cmpregion,reg_centroid)
+      SUBROUTINE BARY_REG(nreg, nx,ny,nz,npix,pixel_to_cmpregion,
+     &                    reg_centroid,list_size_reg)
 
         IMPLICIT NONE
 
@@ -526,18 +517,19 @@
         ! mapping pixel-to-computational region
         INTEGER, INTENT(IN) :: pixel_to_cmpregion(npix) 
         REAL(KIND=8), INTENT(INOUT) :: reg_centroid(3,nreg) ! centroid of the HCC's regions   
+        INTEGER, INTENT(INOUT) :: list_size_reg(nreg) ! list of nb of pixel in each region
 
-        INTEGER :: r,p,i,j,k, cnt(nreg)
+        INTEGER :: r,p,i,j,k
 
         reg_centroid = 0.0
-        cnt = 0
+        list_size_reg = 0
 
         DO i=1,nx
         DO j=1,ny
         DO k=1,nz
             p = i + (j-1)*nx + (k-1)*nx*ny
             r= pixel_to_cmpregion(p)
-            cnt(r) = cnt(r) + 1
+            list_size_reg(r) = list_size_reg(r) + 1
             reg_centroid(1,r) = reg_centroid(1,r) + REAL(i,KIND=8)
             reg_centroid(2,r) = reg_centroid(2,r) + REAL(j,KIND=8)
             reg_centroid(3,r) = reg_centroid(3,r) + REAL(k,KIND=8)
@@ -545,11 +537,40 @@
         ENDDO
         ENDDO
 
-        reg_centroid(1,:)= reg_centroid(1,:)/cnt(:)
-        reg_centroid(2,:)= reg_centroid(2,:)/cnt(:)
-        reg_centroid(3,:)= reg_centroid(3,:)/cnt(:)
+        reg_centroid(1,:)= reg_centroid(1,:)/list_size_reg(:)
+        reg_centroid(2,:)= reg_centroid(2,:)/list_size_reg(:)
+        reg_centroid(3,:)= reg_centroid(3,:)/list_size_reg(:)
 
       END SUBROUTINE BARY_REG
+
+
+      SUBROUTINE CMPREG_TO_PIX(nreg,npix, list_size_reg, 
+     &                         pixel_to_cmpregion,
+     &                         size_sum, cmpreg_to_pixel )
+
+      IMPLICIT NONE
+
+      INTEGER, INTENT(IN) :: nreg,npix, list_size_reg(nreg),
+     &                       pixel_to_cmpregion(npix)
+      INTEGER, INTENT(OUT) :: cmpreg_to_pixel(npix)
+
+      INTEGER :: r,p, cnt(nreg), size_sum(nreg)
+
+      size_sum = 0
+      cnt = 0
+
+      DO r=2,nreg
+         size_sum(r) = size_sum(r-1) + list_size_reg(r-1)
+      ENDDO
+
+      DO p=1,npix
+         r = pixel_to_cmpregion(p)
+         cnt(r) = cnt(r) + 1
+         cmpreg_to_pixel(cnt(r)+size_sum(r)) = p
+      END DO
+      
+
+      END SUBROUTINE
 
       SUBROUTINE BARY_SURF(nsur,nbfx,nbfy,nbfz,
      &                     nx,ny,nz,

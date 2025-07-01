@@ -251,7 +251,7 @@
    
 
 
-      SUBROUTINE MERGEBOUND1(nn,ng,nb,
+      SUBROUTINE MERGEBOUND1(nn,nb,
      &                      imin, imax,jmin,jmax,kmin,kmax,
      &                      nx,ny,nz,
      &                      bflx, bfly, bflz, finc1)
@@ -266,7 +266,7 @@
       
       INTEGER ,PARAMETER :: ns = 4
  
-      INTEGER, INTENT(IN) :: nn, ng,nb 
+      INTEGER, INTENT(IN) :: nn, nb 
       INTEGER, INTENT(IN) :: imin, imax,jmin,jmax,kmin,kmax, nx,ny,nz
       REAL, INTENT(IN)    :: bflx(nn,nb,ny,nz),
      &                       bfly(nn,nb,nx,nz),
@@ -594,52 +594,58 @@
 
 !-----------------------------------------------------------------------
 
-      SUBROUTINE SPLIT_SRC_REG(nn,nr,nx,ny,nz,rin,
-     &                         aflxhcc,aflxpix, pixel_to_cmpregion)
+      SUBROUTINE SPLIT_SRC_REG(nn,nr,nx,ny,nz,nrin,rin,
+     &                         aflxhcc,aflxpix, cmpreg_to_pixel,
+     &                         size_sum_rin,bary_rin)
 
       IMPLICIT NONE
 
       INTEGER, PARAMETER :: nc=4
-      INTEGER, INTENT(IN) :: nn, nr, nx,ny,nz, rin
+      INTEGER, INTENT(IN) :: nn, nr, nx,ny,nz, nrin, rin
       REAL, INTENT(IN)    :: aflxhcc(nn,nc)
       REAL, INTENT(INOUT) :: aflxpix(nn,nr,nc)
-      INTEGER, INTENT(IN) :: pixel_to_cmpregion(nr)
+      INTEGER, INTENT(IN) :: cmpreg_to_pixel(nr),size_sum_rin
+      REAL(KIND=8), INTENT(IN)    :: bary_rin(3)
 
-      INTEGER :: i,j,k,r
+      INTEGER :: i,j,k,r,p
 
-      DO i=1,nx
-      DO j=1,ny
-      DO k=1,nz
-        r = ((k-1)*ny + (j-1))*nx + i
-        IF (pixel_to_cmpregion(r) == rin) THEN
-            aflxpix(:,r,1) = aflxhcc(:,1)
-     &                + 3.0*aflxhcc(:,2)*(2*i-nx-1)/nx
-     &                + 3.0*aflxhcc(:,3)*(2*j-nx-1)/ny
-     &                + 3.0*aflxhcc(:,4)*(2*k-nx-1)/nz
-            aflxpix(:,r,2) = aflxhcc(:,2)/nx
-            aflxpix(:,r,3) = aflxhcc(:,3)/ny
-            aflxpix(:,r,4) = aflxhcc(:,4)/nz
-        END IF
-      ENDDO
-      ENDDO
+
+      r = ((k-1)*ny + (j-1))*nx + i
+
+
+      DO r=1,nrin
+        p = cmpreg_to_pixel(size_sum_rin+r)
+        ! p = ((k-1)*ny + (j-1))*nx + i
+        i = MOD(p,nx)
+        j = p/nx
+        k = j/ny + 1
+        j = MOD(j,ny) + 1
+        aflxpix(:,p,1) = aflxhcc(:,1)
+     &                + 3.0*aflxhcc(:,2)*(i-bary_rin(1))/nx
+     &                + 3.0*aflxhcc(:,3)*(j-bary_rin(2))/ny
+     &                + 3.0*aflxhcc(:,4)*(k-bary_rin(3))/nz
+        aflxpix(:,p,2) = aflxhcc(:,2)/nx
+        aflxpix(:,p,3) = aflxhcc(:,3)/ny
+        aflxpix(:,p,4) = aflxhcc(:,4)/nz
       ENDDO
 
       END SUBROUTINE SPLIT_SRC_REG
 
 
-      SUBROUTINE SPLIT_BOUND_SUR(nn,nr,nx,ny,nz,sin,
+      SUBROUTINE SPLIT_BOUND_SUR(nn,nx,ny,nz,sin,
      &                        x_pixel, y_pixel, z_pixel,bfxhcc,
-     &                        bflx,bfly,bflz)
+     &                        bflx,bfly,bflz, bary_sin)
    
       IMPLICIT NONE
    
       INTEGER, PARAMETER  :: nb=3
-      INTEGER, INTENT(IN) :: nn, nr, nx,ny,nz, sin
+      INTEGER, INTENT(IN) :: nn, nx,ny,nz, sin
       REAL, INTENT(IN)    :: bfxhcc(nn,nb)
       REAL, INTENT(INOUT) :: bflx(nn,nb,ny,nz),
      &                       bfly(nn,nb,nx,nz),
      &                       bflz(nn,nb,nx,ny)
       INTEGER, INTENT(IN) :: x_pixel(*), y_pixel(*), z_pixel(*)
+      REAL(KIND=8), INTENT(IN)    :: bary_sin(2)
    
       INTEGER :: i,j,k,s
 
@@ -649,8 +655,8 @@
         s = (k-1)*ny + j
         IF( x_pixel(s) == sin) THEN
             bflx(:,1,j,k) = bfxhcc(:,1)
-     &        + 3.0*bfxhcc(:,2)*(2.0*j-ny-1)/ny
-     &        + 3.0*bfxhcc(:,3)*(2.0*k-nz-1)/nz
+     &        + 3.0*bfxhcc(:,2)*(j-bary_sin(1))/ny
+     &        + 3.0*bfxhcc(:,3)*(k-bary_sin(2))/nz
             bflx(:,2,j,k) = bfxhcc(:,2)/ny
             bflx(:,3,j,k) = bfxhcc(:,3)/nz  
         ENDIF
@@ -662,8 +668,8 @@
         s = (k-1)*nx + i
         IF( y_pixel(s) == sin) THEN
             bfly(:,1,i,k) = bfxhcc(:,1)
-     &        + 3.0*bfxhcc(:,2)*(2.0*i-nx-1)/nx
-     &        + 3.0*bfxhcc(:,3)*(2.0*k-nz-1)/nz
+     &        + 3.0*bfxhcc(:,2)*(i-bary_sin(1))/nx
+     &        + 3.0*bfxhcc(:,3)*(k-bary_sin(2))/nz
             bfly(:,2,i,k) = bfxhcc(:,2)/nx
             bfly(:,3,i,k) = bfxhcc(:,3)/nz  
          ENDIF
@@ -675,8 +681,8 @@
         s = (i-1)*nx + j
         IF( z_pixel(s) == sin) THEN
             bflz(:,1,i,j) = bfxhcc(:,1)
-     &        + 3.0*bfxhcc(:,2)*(2.0*i-nx-1)/nx
-     &        + 3.0*bfxhcc(:,3)*(2.0*j-ny-1)/ny
+     &        + 3.0*bfxhcc(:,2)*(i-bary_sin(1))/nx
+     &        + 3.0*bfxhcc(:,3)*(j-bary_sin(2))/ny
             bflz(:,2,i,j) = bfxhcc(:,2)/nx
             bflz(:,3,i,j) = bfxhcc(:,3)/ny  
          ENDIF
@@ -687,44 +693,50 @@
       END SUBROUTINE SPLIT_BOUND_SUR
 
 
-
-      SUBROUTINE MERGEVOLHCC(nn,nr,nb_reg,nx,ny,nz,
+      SUBROUTINE MERGEVOLHCC(ng,ndir,nr,nb_reg,nx,ny,nz,
      &                  pixel_to_cmpregion, bary,
      &                  aflx, coeffhcc)
 
       IMPLICIT NONE
 
       INTEGER, PARAMETER :: nc=4
-      INTEGER, INTENT(IN) :: nn, nr, nb_reg, nx,ny,nz
+      INTEGER, INTENT(IN) :: ng,ndir, nr, nb_reg, nx,ny,nz
       INTEGER, INTENT(IN) :: pixel_to_cmpregion(nr)
-      REAL, INTENT(IN)    :: aflx(nn,nr,nc)
-      REAL, INTENT(IN)    :: bary(3,nb_reg)
-      REAL, INTENT(INOUT) :: coeffhcc(nn,nc,nb_reg)
+      REAL, INTENT(IN)    :: aflx(ng,ndir,nr,nc)
+      REAL(KIND=8), INTENT(IN)    :: bary(3,nb_reg)
+      
+      REAL(KIND=8), INTENT(INOUT) :: coeffhcc(ng,ndir,nc,nb_reg)
 
-      INTEGER :: x,y,z,r,reg
+      INTEGER :: x,y,z,r,reg, cnt(nb_reg)
+
+      cnt = 0
+      coeffhcc = 0.0
+
 
       DO z=1,nz
       DO y=1,ny
       DO x=1,ny
         r = ((z-1)*ny + (y-1))*nx + x 
         reg = pixel_to_cmpregion(r)
-        coeffhcc(:,1,reg) = coeffhcc(:,1,reg) + aflx(:,r,1)
+        cnt(reg) = cnt(reg) + 1
+        coeffhcc(:,:,1,reg) = coeffhcc(:,:,1,reg) + aflx(:,:,r,1)
 
-        coeffhcc(:,2,reg) = coeffhcc(:,2,reg) + ( aflx(:,r,2)
-     &        + aflx(:,r,1)*(x - bary(1,reg)) )/nx
+        coeffhcc(:,:,2,reg) = coeffhcc(:,:,2,reg) + ( aflx(:,:,r,2)
+     &        + aflx(:,:,r,1)*(x - bary(1,reg)) )/nx
 
-        coeffhcc(:,3,reg) = coeffhcc(:,3,reg) + ( aflx(:,r,3)
-     &        + aflx(:,r,1)*(y - bary(2,reg)) )/ny
+        coeffhcc(:,:,3,reg) = coeffhcc(:,:,3,reg) + ( aflx(:,:,r,3)
+     &        + aflx(:,:,r,1)*(y - bary(2,reg)) )/ny
 
-        coeffhcc(:,4,reg) = coeffhcc(:,4,reg) + ( aflx(:,r,4)
-     &        + aflx(:,r,1)*(z - bary(3,reg)) )/nz
+        coeffhcc(:,:,4,reg) = coeffhcc(:,:,4,reg) + ( aflx(:,:,r,4)
+     &        + aflx(:,:,r,1)*(z - bary(3,reg)) )/nz
           ENDDO
         ENDDO
       ENDDO
 
       DO reg=1,nb_reg
-        coeffhcc(:,:,reg) = coeffhcc(:,:,reg)/(nx*ny*nz)
+        coeffhcc(:,:,:,reg) = coeffhcc(:,:,:,reg)/cnt(reg)
       ENDDO
+
 
       END SUBROUTINE MERGEVOLHCC
 
@@ -744,8 +756,8 @@
       INTEGER, INTENT(IN) :: x_pixel(nbfx),
      &                       y_pixel(nbfy),
      &                       z_pixel(nbfz)
-      REAL, INTENT(IN) :: bary(2,nsui+nsuo)
-      REAL, INTENT(INOUT) :: coeffhcc(nn,nb,nsuo) 
+      REAL, INTENT(IN)            :: bary(2,nsui+nsuo)
+      REAL(KIND=8), INTENT(INOUT) :: coeffhcc(nn,nb,nsuo) 
       REAL, INTENT(IN) :: bflx(nn,nb,nbfx),
      &                    bfly(nn,nb,nbfy),
      &                    bflz(nn,nb,nbfz)

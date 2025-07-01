@@ -12,12 +12,12 @@
 
       IMPLICIT NONE
 
-      INTEGER, PARAMETER :: n = 2 ! Formule triangle
+      INTEGER, PARAMETER :: n = 60 ! Formule triangle
       INTEGER, PARAMETER :: ityp = 4 ! ChebyshevDoubleLegendre
       REAL, PARAMETER    :: tolinner = 1.0e-6
       REAL, PARAMETER    :: tolcor   = 1.0e-3
-    !   REAL, PARAMETER    :: tolcor   = -1.0
-      REAL, PARAMETER    :: delt = 10.0
+      ! REAL, PARAMETER    :: tolcor   = -1.0
+      REAL, PARAMETER    :: delt = 4.0
       INTEGER, PARAMETER :: nmat = 2, nsurf = 6
       INTEGER, PARAMETER :: maxinner = 100
       INTEGER, PARAMETER :: n8=8, ns=4
@@ -77,10 +77,10 @@
       REAL(KIND=8),ALLOCATABLE  :: errcor(:,:),errmul(:,:)
       REAL :: errbnd(3)
 
-      REAL(KIND=8), ALLOCATABLE :: Cm(:,:,: ,:,:,:)
-      REAL(KIND=8), ALLOCATABLE :: Em(:,:,: ,:,:,:)
-      REAL(KIND=8), ALLOCATABLE :: Im(:,:,: ,:,:,:)
-      REAL(KIND=8), ALLOCATABLE :: Tm(:,:,: ,:,:,:)
+      REAL(KIND=8), ALLOCATABLE :: Cm(:,:,: ,:,:,:,:)
+      REAL(KIND=8), ALLOCATABLE :: Em(:,:,: ,:,:,:,:)
+      REAL(KIND=8), ALLOCATABLE :: Im(:,:,: ,:,:,:,:)
+      REAL(KIND=8), ALLOCATABLE :: Tm(:,:,: ,:,:,:,:)
 
 
       !Variables à partir des paramètres
@@ -88,14 +88,15 @@
       nc = 4
       nb = 3
       ndim = 3
-      nx = 16
-      ny = 16
-      nz = 16
+      nx = 64
+      ny = 64
+      nz = 64
       nani=0
       nhrm=1 
       nh = 1
 
       nreg = nmat
+
 
       nbfx = ny*nz
       nbfy = nx*nz
@@ -153,12 +154,17 @@
       ALLOCATE(list_size_reg(nmat))
 
 
-      ALLOCATE(Cm(nn,nc,nreg,nc,nreg,noct)) 
-      ALLOCATE(Em(nn,nb,nsurf/2,nc,nreg,noct)) 
-      ALLOCATE(Im(nn,nc,nreg,nb,nsurf/2,noct)) 
-      ALLOCATE(Tm(nn,nb,nsurf/2,nb,nsurf/2,noct))
+      ALLOCATE(Cm(ng,ndir,nc, nreg   ,nc,nreg   ,noct)) 
+      ALLOCATE(Em(ng,ndir,nb, nsurf/2,nc,nreg   ,noct)) 
+      ALLOCATE(Im(ng,ndir,nc, nreg   ,nb,nsurf/2,noct)) 
+      ALLOCATE(Tm(ng,ndir,nb, nsurf/2,nb,nsurf/2,noct))
 
       ALLOCATE(asrc0(nn,nc))
+
+      Cm = 0.0
+      Em = 0.0
+      Im = 0.0
+      Tm = 0.0
 
 
 
@@ -187,6 +193,7 @@
       y_pixel(:,2) = 4
       z_pixel(:,1) = 5
       z_pixel(:,2) = 6
+      
 
       ! Création de iosurf
 
@@ -226,10 +233,14 @@
       ENDDO
 
 
-      sigt(:,1)   = 0.3
+
+      sigt(:,1)   = 0.1
       sigs(:,0,1) = 0.0
       sigt(:,2)   = 0.55
-      sigs(:,0,2) = 0.0
+      sigs(:,0,2) = 0.44
+
+
+      ! zreg = 1 
 
       ! Initials Boundary conditions
       bflx = 0.0
@@ -242,6 +253,11 @@
 
       ! Definition of the external source term
       srcm = 0.0
+      DO r=1,nr
+        IF (zreg(r)==2) THEN
+          srcm(:,r,:,1) = 1.0
+        END IF
+      ENDDO
 
         
       DO oct=1,noct
@@ -261,39 +277,87 @@
 
 
     
-      CALL HCC_COEFF(ng,nn,nmat,nsurf,nsurf/2,nsurf/2,
-     &               nc,nb,1,x_pixel,y_pixel,z_pixel,
-     &               zreg,iosurf_map,
-     &               list_size_reg,
-     &               nr,nh,nmat,
-     &               nbd,nbfx,nbfy,nbfz,
-     &               nx,ny,nz,
-     &               nani,nhrm,nd,ndir,noct,
-     &               sigt,sigs,
-     &               asrc(1,1,1,1),aflx(1,1,1,1),bflx(1,1,1,1,1),
-     &               bfly(1,1,1,1,1), bflz(1,1,1,1,1),
-     &               mu,eta,ksi,w,pisn,sphr,
-     &               zreg, sgnc,sgni, sgne,sgnt,
-     &               delt3,pdslu4, aflxmean,
-     &               tolcor,asrc0,
-     &               aflx0, aflx1,
-     &               asrcm0, asrcm1,
-     &               finc1, fout1,
-     &               finc0, fout0,
-     &               ccof,icof,
-     &               ecof,tcof,
-     &               ccof8,icof8,
-     &               ecof8,tcof8, 
-     &               Cm,Em,Im,Tm, errcor,errmul)
+    !   CALL HCC_COEFF(ng,nn,nmat,nsurf,nsurf/2,nsurf/2,
+    !  &               nc,nb,1,x_pixel,y_pixel,z_pixel,
+    !  &               zreg,iosurf_map,
+    !  &               list_size_reg,
+    !  &               nr,nh,nmat,
+    !  &               nbd,nbfx,nbfy,nbfz,
+    !  &               nx,ny,nz,
+    !  &               nani,nhrm,nd,ndir,noct,
+    !  &               sigt,sigs,
+    !  &               asrc(1,1,1,1),aflx(1,1,1,1),bflx(1,1,1,1,1),
+    !  &               bfly(1,1,1,1,1), bflz(1,1,1,1,1),
+    !  &               mu,eta,ksi,w,pisn,sphr,
+    !  &               zreg, sgnc,sgni, sgne,sgnt,
+    !  &               delt3,pdslu4, aflxmean,
+    !  &               tolcor,asrc0,
+    !  &               aflx0, aflx1,
+    !  &               asrcm0, asrcm1,
+    !  &               finc1, fout1,
+    !  &               finc0, fout0,
+    !  &               ccof,icof,
+    !  &               ecof,tcof,
+    !  &               ccof8,icof8,
+    !  &               ecof8,tcof8, 
+    !  &               Cm,Em,Im,Tm, errcor,errmul)
+
+
+        CALL SWEE_TOT_3D_ADAPTIVE(
+       ! inputs: dimensions 
+     &                          nn,ng,nr,nh,nc,nmat,
+     &                          nb,nbd,nbfx,nbfy,nbfz,
+     &                          nx,ny,nz,
+     &                          nani,nhrm,nd,ndir,
+       ! inputs: cross section  
+     &                          sigt,sigs,
+       ! inputs: source and flux moments at previous iteration 
+     &                          srcm,asrc,
+       ! input/output: boundary flux 
+     &                          bflx,bfly,bflz,
+       ! input: angular quadrature & spherical harmonics
+     &                          mu,eta,ksi,w,pisn,sphr,
+       ! input: sing matrices to adapt coefficients to octants 
+     &                          sgnc,sgni,sgne,sgnt,
+       ! input: auxiliar memory for boundary angular fluxes, angular 
+       ! source moments and self-scattering xs 
+     &                          sigg, tmom,
+       ! input: auxiliar memory angular flux & source 
+     &                          dsrc, aflx,
+       ! input: auxiliar memory to drive angular mirror-reflection 
+       ! or rotation/translation b.c.
+     &                          rdir,
+       ! input: pixel-to-medium array 
+     &                          zreg, 
+       ! input: pixel-to-medium array 
+     &                          dira,dirf,
+       ! input: logical to add angular source in case of
+       ! time-dependent calculation 
+     &                          lgki,
+       ! output: flux moments 
+     &                          flxm,
+       ! Delta on each direction of the region
+     &                          delt3,
+      ! max inner iterations and tolerance for inner iterations
+     &                          maxinner, tolinner, tolcor,
+     &                          aflxmean,
+     &                          pdslu4,
+     &                          aflx0, aflx1,
+     &                          asrcm0, asrcm1,
+     &                          finc1, fout1,
+     &                          finc0, fout0, lastadd)
+
+
+      ! print *,"flxm", flxm(:,:,:,1,3-lastadd)
 
 
       print *, "uboundcmext", ubound(Cm)
 
 
-      print*, "Cm", MAXVAL(ABS(Cm))
-      print*, "Em", MAXVAL(ABS(Em))
-      print*, "Im", MAXVAL(ABS(Im))
-      print*, "Tm", MAXVAL(ABS(Tm))
+      ! print*, "Cm", MAXVAL(ABS(Cm))
+      ! print*, "Em", MAXVAL(ABS(Em))
+      ! print*, "Im", MAXVAL(ABS(Im))
+      ! print*, "Tm", MAXVAL(ABS(Tm))
 
 
 
@@ -339,12 +403,12 @@
       ! Enregistrement des résultats dans un fichier VTK
 
 
-      WRITE(name, '(A,I0,A,I0,A,I0,A)') "milieux.vtk"
+      WRITE(name, '(A,I0,A,I0,A,I0,A)') "tor_flx.vtk"
       CALL VOLVTK(nx,ny,nz,
      &            .TRUE.,.TRUE.,.TRUE.,
      &            0.0,0.0,0.0,                     
      &            (/delt, delt, delt/),
-     &            REAL(zreg),name)
+     &            flxm(:,:,:,1,lastadd),name)
 
     !   WRITE(name, '(A,I0,A,I0,A,I0,A)') "flx_vol.vtk"
     !   CALL VOLVTK(nx,ny,nz,

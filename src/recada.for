@@ -79,7 +79,7 @@
       REAL(KIND=8), INTENT(IN) :: pdslu4(ndir) ! pds to compute src 4 \int(L^4)
    
       INTEGER :: xout,yout,zout,fst
-      INTEGER :: oc,oct,d,dd,da,c,h,i
+      INTEGER :: oc,oct,d,da,c,h
    
       REAL, INTENT(INOUT)  :: aflx0(nn,nc), aflx1(nn,nc,n8)
       REAL, INTENT(INOUT)  :: asrcm0(ng,ndir,nc), asrcm1(ng,ndir,nc,n8)
@@ -100,10 +100,10 @@
       INTEGER :: cnt,g,r,nb_cell,a,b,inew,iold, addrflx(2)
       INTEGER, PARAMETER :: olda=1, newa=2
       INTEGER, INTENT(INOUT) :: lastadd
-      REAL :: max_err_inner, tol_tmp, errtot
+      REAL(KIND=8) :: max_err_inner, tol_tmp
+      REAL(KIND=8) ::  errtot
       LOGICAL :: oksrc
    
-      INTEGER :: posmax(4)
       REAL :: xstlvl1(ng,n8)
 
       cnt = 0
@@ -329,14 +329,14 @@
       REAL, INTENT(IN)     :: ccof8(nn,nc,nc,n8),icof8(nn,nc,nbd,n8)
       REAL, INTENT(IN)     :: ecof8(nn,nbd,nc,n8),tcof8(nn,nbd,nbd,n8)
       LOGICAL, INTENT(INOUT)  :: ok, oksrc
-      REAL, INTENT(INOUT)  :: errtot
+      REAL(KIND=8), INTENT(INOUT)  :: errtot
       REAL, INTENT(IN)        :: delt3(3)
       INTEGER, INTENT(INOUT)  :: i,j,k,r, nb_cell,g,cnt
       REAL, INTENT(INOUT) :: errbnd(3)
 
       !Variables locales 
       
-      REAL :: asrcmtps(ng,ndir,nc,n8),xshomtps(ng,n8)
+      REAL :: asrcmtps(ng,ndir,nc,n8)
       REAL :: ccoftps(nn,nc,nc,n8),icoftps(nn,nc,nbd,n8)
       REAL :: ecoftps(nn,nbd,nc,n8),tcoftps(nn,nbd,nbd,n8)
       REAL :: finc0tps(nn,nb,nb), finc1tps(nn,nb,nb,ns)
@@ -405,7 +405,7 @@
      &                 imin, imax,jmin,jmax,kmin,kmax,
      &                 zreg, asrc,asrcm1)
 
-        CALL MERGEBOUND1(nn, ng,nb,
+        CALL MERGEBOUND1(nn,nb,
      &                   imin, imax,jmin,jmax,kmin,kmax,
      &                   nx,ny,nz,
      &                   bflx, bfly, bflz, finc1)

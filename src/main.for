@@ -12,13 +12,13 @@
 
       IMPLICIT NONE
 
-      INTEGER, PARAMETER :: n = 60 ! Formule triangle
+      INTEGER, PARAMETER :: n = 30 ! Formule triangle
       INTEGER, PARAMETER :: ityp = 4 ! ChebyshevDoubleLegendre
       REAL, PARAMETER    :: tolinner = 1.0e-6
-      REAL, PARAMETER    :: tolcor   = 1.0e-3
-      ! REAL, PARAMETER    :: tolcor   = -1.0
+      ! REAL, PARAMETER    :: tolcor   = 1.0e-3
+      REAL, PARAMETER    :: tolcor   = -1.0
       REAL, PARAMETER    :: delt = 4.0
-      INTEGER, PARAMETER :: nmat = 2, nsurf = 6
+      INTEGER, PARAMETER :: nmat = 1, nsurf = 6
       INTEGER, PARAMETER :: maxinner = 100
       INTEGER, PARAMETER :: n8=8, ns=4
       REAL, PARAMETER    :: rmaj = 2.0, rmin = 1.0 ! Major and minor radii torus
@@ -61,16 +61,16 @@
 
       REAL    :: pisn
       REAL    :: delt3(3)
-      INTEGER :: count_start, count_end, count_rate
+      INTEGER :: count_start, count_end, count_rate, count_middle
       INTEGER :: x,y,z,r,oct, d,fst,da
       CHARACTER(LEN=20) :: name
-      INTEGER :: lastadd,cnt,g,i,j,k,nb_cell, nb_pix_tor
+      INTEGER :: lastadd,cnt,g,i,j,k,nb_cell, nb_pix_tor,nb_niv
       LOGICAL :: ok,oksrc
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-      REAL, ALLOCATABLE  :: ccof(:,:,:),icof(:,:,:)
-      REAL, ALLOCATABLE  :: ecof(:,:,:),tcof(:,:,:)
+      REAL, ALLOCATABLE  :: ccofglb(:,:,:,:,:),icofglb(:,:,:,:,:)
+      REAL, ALLOCATABLE  :: ecofglb(:,:,:,:,:),tcofglb(:,:,:,:,:)
       REAL, ALLOCATABLE  :: ccof8(:,:,:,:),icof8(:,:,:,:)
       REAL, ALLOCATABLE  :: ecof8(:,:,:,:),tcof8(:,:,:,:)
       REAL, ALLOCATABLE  :: xstlvl1(:,:)
@@ -83,20 +83,23 @@
       REAL(KIND=8), ALLOCATABLE :: Tm(:,:,: ,:,:,:,:)
 
 
+      REAL, ALLOCATABLE :: ccof(:,:,:), icof(:,:,:)
+      REAL, ALLOCATABLE :: ecof(:,:,:), tcof(:,:,:)
+
       !Variables à partir des paramètres
       ng = 1
       nc = 4
       nb = 3
       ndim = 3
-      nx = 64
-      ny = 64
-      nz = 64
+      nb_niv = 6
+      nx = 2**(nb_niv-1)
+      ny = 2**(nb_niv-1)
+      nz = 2**(nb_niv-1)
       nani=0
       nhrm=1 
       nh = 1
 
       nreg = nmat
-
 
       nbfx = ny*nz
       nbfy = nx*nz
@@ -116,10 +119,11 @@
       ALLOCATE(bfly(nn,nb,nbfy,2,noct))
       ALLOCATE(bflz(nn,nb,nbfz,2,noct))
       ALLOCATE(aflx(nn,nr,nc,noct))
-
       
-      ALLOCATE(ccof(nn,nc,nc),icof(nn,nc,nbd))
-      ALLOCATE(ecof(nn,nbd,nc),tcof(nn,nbd,nbd))
+      ALLOCATE(ccofglb(nn,nc ,nc ,nmat,nb_niv),
+     &         icofglb(nn,nc ,nbd,nmat,nb_niv))
+      ALLOCATE(ecofglb(nn,nbd,nc ,nmat,nb_niv),
+     &         tcofglb(nn,nbd,nbd,nmat,nb_niv))
       ALLOCATE(ccof8(nn,nc,nc,n8),icof8(nn,nc,nbd,n8))
       ALLOCATE(ecof8(nn,nbd,nc,n8),tcof8(nn,nbd,nbd,n8))
       ALLOCATE(xstlvl1(ng,n8))
@@ -161,86 +165,80 @@
 
       ALLOCATE(asrc0(nn,nc))
 
+      ALLOCATE(ccof(nn,nc,nc), icof(nn,nc,nbd))
+      ALLOCATE(ecof(nn,nbd,nc), tcof(nn,nbd,nbd))
+
       Cm = 0.0
       Em = 0.0
       Im = 0.0
       Tm = 0.0
 
-
-
-      CALL SYSTEM_CLOCK(count_start, count_rate)  ! Capture début
-  
       delt3 = (/delt, delt, delt/)
       lastadd = 2
 
+      ! CALL torus_voxel(nx,ny,nz,rmaj,rmin,delt/nx,nb_pix_tor,zreg)
+      !                 list_size_reg(1) = nr-nb_pix_tor
+      !                 list_size_reg(2) = nb_pix_tor
+
+      CALL SYSTEM_CLOCK(count_start, count_rate)  ! Capture début
+  
       ! Change nmat according to the number of materials
       ! Definition of the cross sections
 
     !   CALL sphere_voxel(nx,ny,nz,rmaj,delt/nx,zreg)
 
-
       ! géométrie et attribution des régions
 
-      CALL torus_voxel(nx,ny,nz,rmaj,rmin,delt/nx,nb_pix_tor,zreg)
-      list_size_reg(1) = nr-nb_pix_tor
-      list_size_reg(2) = nb_pix_tor
-
       ! Création des surfaces 
-
-      x_pixel(:,1) = 1
-      x_pixel(:,2) = 2
-      y_pixel(:,1) = 3
-      y_pixel(:,2) = 4
-      z_pixel(:,1) = 5
-      z_pixel(:,2) = 6
-      
-
+      ! x_pixel(:,1) = 1
+      ! x_pixel(:,2) = 2
+      ! y_pixel(:,1) = 3
+      ! y_pixel(:,2) = 4
+      ! z_pixel(:,1) = 5
+      ! z_pixel(:,2) = 6
       ! Création de iosurf
+      ! DO oct=1,noct
 
-      DO oct=1,noct
-
-        iosurf_map(1,1,oct) = 1
-        iosurf_map(2,1,oct) = 1
+      !   iosurf_map(1,1,oct) = 1
+      !   iosurf_map(2,1,oct) = 1
         
-        IF (xinc(oct)==1) THEN
-            iosurf_map(1,2,oct) = 1
-            iosurf_map(2,2,oct) = 2
-        ELSE
-            iosurf_map(1,2,oct) = 2
-            iosurf_map(2,2,oct) = 1
-        ENDIF
+      !   IF (xinc(oct)==1) THEN
+      !       iosurf_map(1,2,oct) = 1
+      !       iosurf_map(2,2,oct) = 2
+      !   ELSE
+      !       iosurf_map(1,2,oct) = 2
+      !       iosurf_map(2,2,oct) = 1
+      !   ENDIF
 
-        iosurf_map(3,1,oct) = 2
-        iosurf_map(4,1,oct) = 2
-        IF (yinc(oct)==1) THEN
-            iosurf_map(3,2,oct) = 1
-            iosurf_map(4,2,oct) = 2
-        ELSE
-            iosurf_map(3,2,oct) = 2
-            iosurf_map(4,2,oct) = 1
-        ENDIF
+      !   iosurf_map(3,1,oct) = 2
+      !   iosurf_map(4,1,oct) = 2
+      !   IF (yinc(oct)==1) THEN
+      !       iosurf_map(3,2,oct) = 1
+      !       iosurf_map(4,2,oct) = 2
+      !   ELSE
+      !       iosurf_map(3,2,oct) = 2
+      !       iosurf_map(4,2,oct) = 1
+      !   ENDIF
 
-        iosurf_map(5,1,oct) = 3
-        iosurf_map(6,1,oct) = 3
-        IF (zinc(oct)==1) THEN
-            iosurf_map(5,2,oct) = 1
-            iosurf_map(6,2,oct) = 2
-        ELSE
-            iosurf_map(5,2,oct) = 2
-            iosurf_map(6,2,oct) = 1
-        ENDIF
-
-      ENDDO
+      !   iosurf_map(5,1,oct) = 3
+      !   iosurf_map(6,1,oct) = 3
+      !   IF (zinc(oct)==1) THEN
+      !       iosurf_map(5,2,oct) = 1
+      !       iosurf_map(6,2,oct) = 2
+      !   ELSE
+      !       iosurf_map(5,2,oct) = 2
+      !       iosurf_map(6,2,oct) = 1
+      !   ENDIF
+      ! ENDDO
 
 
 
       sigt(:,1)   = 0.1
       sigs(:,0,1) = 0.0
-      sigt(:,2)   = 0.55
-      sigs(:,0,2) = 0.44
+      ! sigt(:,2)   = 0.55
+      ! sigs(:,0,2) = 0.44
 
-
-      ! zreg = 1 
+      zreg = 1 
 
       ! Initials Boundary conditions
       bflx = 0.0
@@ -254,7 +252,7 @@
       ! Definition of the external source term
       srcm = 0.0
       DO r=1,nr
-        IF (zreg(r)==2) THEN
+        IF (zreg(r)==1) THEN
           srcm(:,r,:,1) = 1.0
         END IF
       ENDDO
@@ -273,10 +271,18 @@
       w = w/4
       ! Creating the spherical harmonics
       CALL SNQDLFT(ndir,nd,nani,ndim, nhrm, mu,eta,ksi,w,sphr)
-      CALL GAUSS_LU4(100,ndir, delt3, mu,eta,ksi, pdslu4)
+      CALL GAUSS_LU4(40,ndir, delt3, mu,eta,ksi, pdslu4)
+
+      CALL COMPUTE_COEFF_GLB(ng,ndir,nmat,delt3,nb_niv,
+     &                      mu,eta,ksi,sigt,
+     &                      ccofglb,icofglb,ecofglb,tcofglb)
 
 
-    
+      CALL SYSTEM_CLOCK(count_middle, count_rate)  ! Capture début
+
+      PRINT *,"Temps mid:", REAL(count_middle - count_start)/count_rate,
+     &                 " secondes"
+
     !   CALL HCC_COEFF(ng,nn,nmat,nsurf,nsurf/2,nsurf/2,
     !  &               nc,nb,1,x_pixel,y_pixel,z_pixel,
     !  &               zreg,iosurf_map,
@@ -303,52 +309,34 @@
     !  &               Cm,Em,Im,Tm, errcor,errmul)
 
 
-        CALL SWEE_TOT_3D_ADAPTIVE(
-       ! inputs: dimensions 
-     &                          nn,ng,nr,nh,nc,nmat,
-     &                          nb,nbd,nbfx,nbfy,nbfz,
-     &                          nx,ny,nz,
-     &                          nani,nhrm,nd,ndir,
-       ! inputs: cross section  
-     &                          sigt,sigs,
-       ! inputs: source and flux moments at previous iteration 
-     &                          srcm,asrc,
-       ! input/output: boundary flux 
-     &                          bflx,bfly,bflz,
-       ! input: angular quadrature & spherical harmonics
-     &                          mu,eta,ksi,w,pisn,sphr,
-       ! input: sing matrices to adapt coefficients to octants 
-     &                          sgnc,sgni,sgne,sgnt,
-       ! input: auxiliar memory for boundary angular fluxes, angular 
-       ! source moments and self-scattering xs 
-     &                          sigg, tmom,
-       ! input: auxiliar memory angular flux & source 
-     &                          dsrc, aflx,
-       ! input: auxiliar memory to drive angular mirror-reflection 
-       ! or rotation/translation b.c.
-     &                          rdir,
-       ! input: pixel-to-medium array 
-     &                          zreg, 
-       ! input: pixel-to-medium array 
-     &                          dira,dirf,
-       ! input: logical to add angular source in case of
-       ! time-dependent calculation 
-     &                          lgki,
-       ! output: flux moments 
-     &                          flxm,
-       ! Delta on each direction of the region
-     &                          delt3,
-      ! max inner iterations and tolerance for inner iterations
-     &                          maxinner, tolinner, tolcor,
-     &                          aflxmean,
-     &                          pdslu4,
-     &                          aflx0, aflx1,
-     &                          asrcm0, asrcm1,
-     &                          finc1, fout1,
-     &                          finc0, fout0, lastadd)
+        CALL SWEE_TOT_3D_ADAPTIVE(nn,ng,nr,nh,nc,nmat,nb_niv,
+     &                            nb,nbd,nbfx,nbfy,nbfz,
+     &                            nx,ny,nz,
+     &                            nani,nhrm,nd,ndir,
+     &                            sigt,sigs,
+     &                            srcm,asrc,
+     &                            bflx,bfly,bflz,
+     &                            mu,eta,ksi,w,pisn,sphr,
+     &                            sgnc,sgni,sgne,sgnt,
+     &                            ccofglb,icofglb,ecofglb,tcofglb,
+     &                            sigg, tmom,
+     &                            dsrc, aflx,
+     &                            rdir,
+     &                            zreg, 
+     &                            dira,dirf,
+     &                            lgki,
+     &                            flxm,
+     &                            delt3,
+     &                            maxinner, tolinner, tolcor,
+     &                            aflxmean,
+     &                            pdslu4,
+     &                            aflx0, aflx1,
+     &                            asrcm0, asrcm1,
+     &                            finc1, fout1,
+     &                            finc0, fout0, lastadd)
 
 
-      ! print *,"flxm", flxm(:,:,:,1,3-lastadd)
+      ! print *,"flxm", flxm(:,:,:,1,lastadd)
 
 
       print *, "uboundcmext", ubound(Cm)

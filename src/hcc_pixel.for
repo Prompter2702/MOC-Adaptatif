@@ -236,8 +236,8 @@
      &                   nx,ny,nz,
      &                   bflx, bfly,bflz,finc0)
 
-        CALL SWEEP_ONEREGION(ng*ndir,2,asrcm0, finc0, aflx0, fout0,
-     &                          ccof,icof,ecof,tcof)
+   !      CALL SWEEP_ONEREGION(ng*ndir,2,asrcm0, finc0, aflx0, fout0,
+   !   &                          ccof,icof,ecof,tcof)
 
        CALL RECADA_ONE_OCTANT(ng*ndir,ng,ndir,npix,nh,
      &                        nx,ny,nz,
@@ -316,9 +316,9 @@
      &                   1,nx,1,ny,1,nz,
      &                   nx,ny,nz,
      &                   bflx, bfly,bflz,finc0)
-        CALL SWEEP_ONEREGION(nn,2,asrcm0, 
-     &                         finc0, aflx0, fout0,
-     &                         ccof,icof,ecof,tcof)
+   !      CALL SWEEP_ONEREGION(nn,2,asrcm0, 
+   !   &                         finc0, aflx0, fout0,
+   !   &                         ccof,icof,ecof,tcof)
 
         CALL RECADA_ONE_OCTANT(nn,ng,ndir,npix,nh,
      &                       nx,ny,nz,

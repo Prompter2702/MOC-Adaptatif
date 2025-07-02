@@ -51,12 +51,10 @@
 
       cnt = 0 
       DO d=1,ndir
+        ox=2*mu(d)/delt(1)
+        oy=2*eta(d)/delt(2)
+        oz=2*ksi(d)/delt(3)
         DO g=1,ng
-           ox=2*mu(d)/delt(1)
-           oy=2*eta(d)/delt(2)
-           oz=2*ksi(d)/delt(3)
-
-
 
 !           Coefficient for LL Method of Characteristics (simplified).
             CALL COF3C1(ox,oy,oz,stot(g),
@@ -79,7 +77,7 @@
       ENDDO 
 
       END SUBROUTINE
-    
+
 !----------------------------------------------------------------------
 
       SUBROUTINE  EIGHT_COEF3D(nn,ndir,ng,mu,eta,ksi,
@@ -109,10 +107,69 @@
       ENDDO
 
       END SUBROUTINE
+
+
+
+
+      SUBROUTINE ASSIGN_EIGHT_COEF3D(nn,nx,ny,
+     &                    order_cell, nmat,zreg,
+     &                    sgnc,sgni,sgne,sgnt,
+     &                    ccofglb,icofglb,ecofglb,tcofglb,
+     &                    ccof,icof,ecof,tcof)  
+      
+      IMPLICIT NONE
+      
+      INTEGER, PARAMETER :: nr = 8, nc=4, nbd=9
+      INTEGER       :: nn, nmat,nx,ny
+      INTEGER       :: sgnc(*),sgni(*),sgne(*),sgnt(*)
+      INTEGER       :: order_cell(6,nr)
+      REAL          :: ccof(nn,nc,nc,nr),icof(nn,nc,nbd,nr)
+      REAL          :: ecof(nn,nbd,nc,nr),tcof(nn,nbd,nbd,nr)
+      REAL, INTENT(IN) :: ccofglb(nn ,nc ,nc ,nmat),
+     &                    icofglb (nn,nc ,nbd,nmat),
+     &                    ecofglb(nn ,nbd,nc ,nmat),
+     &                    tcofglb(nn ,nbd,nbd,nmat)
+
+      REAL , DIMENSION(nc,nc)   :: ccof_aux
+      REAL , DIMENSION(nc,nbd)  :: icof_aux
+      REAL , DIMENSION(nbd,nc)  :: ecof_aux
+      REAL , DIMENSION(nbd,nbd) :: tcof_aux
+
+      INTEGER, INTENT(IN) :: zreg(*)
+      INTEGER :: ncol= nc*nc, nesc= nc*nbd, ntrn= nbd*nbd
+      INTEGER :: i,j,k,mat,n,cnt
+
+      DO cnt=1,nr
+        i = order_cell(1,cnt)
+        j = order_cell(3,cnt)
+        k = order_cell(5,cnt)
+        mat = zreg(i + nx*(j-1) + nx*ny*(k-1))
+        
+        ! Copy the coefficients from the global arrays            
+        DO n=1,nn
+        !      multiply by the sign-matrices to specilize the coefficient
+        !      to the octant 
+          CALL SVIVR3(ncol,sgnc,ccofglb(n,:,:,mat),ccof_aux)
+          CALL SVIVR3(nesc,sgni,icofglb(n,:,:,mat),icof_aux)
+          CALL SVIVR3(nesc,sgne,ecofglb(n,:,:,mat),ecof_aux)
+          CALL SVIVR3(ntrn,sgnt,tcofglb(n,:,:,mat),tcof_aux)
+
+          ccof(n,:,:,cnt) = ccof_aux
+          icof(n,:,:,cnt) = icof_aux
+          ecof(n,:,:,cnt) = ecof_aux
+          tcof(n,:,:,cnt) = tcof_aux
+
+        END DO
+
+      END DO
+
+      END SUBROUTINE
+
 !----------------------------------------------------------------------
 !----------------------------------------------------------------------
       
       SUBROUTINE SWEEP_ONEREGION(n,mord,asrc,finc,aflx,fout,
+     &                           sgnc,sgni,sgne,sgnt, 
      &                           ccof,icof,ecof,tcof)
 !     Spatial sweep of 1 region 
 !     "mord"  is method order flag.
@@ -131,64 +188,76 @@
       INTEGER      :: n,mord
       REAL         :: aflx(n,nc),asrc(n,nc)
       REAL         :: finc(n,nbd),fout(n,nbd)
-      REAL         :: ccof(n,nc,nc),icof(n,nc,nbd)
-      REAL         :: ecof(n,nbd,nc),tcof(n,nbd,nbd)
+      REAL,INTENT(IN) :: ccof(n,nc,nc),icof(n,nc,nbd)
+      REAL,INTENT(IN) :: ecof(n,nbd,nc),tcof(n,nbd,nbd)
+      REAL         :: ccofaux(n,nc,nc),icofaux(n,nc,nbd)
+      REAL         :: ecofaux(n,nbd,nc),tcofaux(n,nbd,nbd)
+      INTEGER      :: sgnc(nc,nc),sgni(nc,nbd),
+     &                sgne(nc,nbd),sgnt(nbd,nbd)
 
-      INTEGER      :: c,b
+      INTEGER      :: c,b,g
+      INTEGER      :: ncol= nc*nc, nesc= nc*nbd, ntrn= nbd*nbd
 
+
+      DO g=1,n
+        CALL SVIVR3(ncol,sgnc,ccof(g,:,:),ccofaux(g,:,:))
+        CALL SVIVR3(nesc,sgni,icof(g,:,:),icofaux(g,:,:))
+        CALL SVIVR3(nesc,sgne,ecof(g,:,:),ecofaux(g,:,:))
+        CALL SVIVR3(ntrn,sgnt,tcof(g,:,:),tcofaux(g,:,:))
+      END DO
 
       SELECT CASE (mord)
 
       CASE (1) ! Constant flux scheme.
 !              Sweep along x.
-       aflx(:,1) =ccof(:,1,1)*asrc(:,1)
-     &           +icof(:,1,1)*finc(:,1)
-     &           +icof(:,1,2)*finc(:,2)
-     &           +icof(:,1,3)*finc(:,3)
-        fout(:,1)=ecof(:,1,1)*asrc(:,1)
-     &           +tcof(:,1,1)*finc(:,1)
-     &           +tcof(:,1,2)*finc(:,2)
-     &           +tcof(:,1,3)*finc(:,3)
-        fout(:,2)=ecof(:,2,1)*asrc(:,1)
-     &           +tcof(:,2,1)*finc(:,1)
-     &           +tcof(:,2,2)*finc(:,2)
-     &           +tcof(:,2,3)*finc(:,3)
-        fout(:,3)=ecof(:,3,1)*asrc(:,1)
-     &           +tcof(:,3,1)*finc(:,1)
-     &           +tcof(:,3,2)*finc(:,2)
-     &           +tcof(:,3,3)*finc(:,3)
+       aflx(:,1) =ccofaux(:,1,1)*asrc(:,1)
+     &           +icofaux(:,1,1)*finc(:,1)
+     &           +icofaux(:,1,2)*finc(:,2)
+     &           +icofaux(:,1,3)*finc(:,3)
+        fout(:,1)=ecofaux(:,1,1)*asrc(:,1)
+     &           +tcofaux(:,1,1)*finc(:,1)
+     &           +tcofaux(:,1,2)*finc(:,2)
+     &           +tcofaux(:,1,3)*finc(:,3)
+        fout(:,2)=ecofaux(:,2,1)*asrc(:,1)
+     &           +tcofaux(:,2,1)*finc(:,1)
+     &           +tcofaux(:,2,2)*finc(:,2)
+     &           +tcofaux(:,2,3)*finc(:,3)
+        fout(:,3)=ecofaux(:,3,1)*asrc(:,1)
+     &           +tcofaux(:,3,1)*finc(:,1)
+     &           +tcofaux(:,3,2)*finc(:,2)
+     &           +tcofaux(:,3,3)*finc(:,3)
 !    
       CASE (2) ! Linear flux scheme.
 
       DO c=1,4
-        aflx(:,c)=ccof(:,c,1)*asrc(:,1)
-     &             +ccof(:,c,2)*asrc(:,2)
-     &             +ccof(:,c,3)*asrc(:,3)
-     &             +ccof(:,c,4)*asrc(:,4)
-     &             +icof(:,c,1)*finc(:,1)
-     &             +icof(:,c,2)*finc(:,2)
-     &             +icof(:,c,3)*finc(:,3)
-     &             +icof(:,c,4)*finc(:,4)
-     &             +icof(:,c,5)*finc(:,5)
-     &             +icof(:,c,6)*finc(:,6)
-     &             +icof(:,c,7)*finc(:,7)
-     &             +icof(:,c,8)*finc(:,8)
-     &             +icof(:,c,9)*finc(:,9)
+        aflx(:,c)=ccofaux(:,c,1)*asrc(:,1)
+     &             +ccofaux(:,c,2)*asrc(:,2)
+     &             +ccofaux(:,c,3)*asrc(:,3)
+     &             +ccofaux(:,c,4)*asrc(:,4)
+     &             +icofaux(:,c,1)*finc(:,1)
+     &             +icofaux(:,c,2)*finc(:,2)
+     &             +icofaux(:,c,3)*finc(:,3)
+     &             +icofaux(:,c,4)*finc(:,4)
+     &             +icofaux(:,c,5)*finc(:,5)
+     &             +icofaux(:,c,6)*finc(:,6)
+     &             +icofaux(:,c,7)*finc(:,7)
+     &             +icofaux(:,c,8)*finc(:,8)
+     &             +icofaux(:,c,9)*finc(:,9)
       ENDDO
       DO b=1,9
-        fout(:,b)=ecof(:,b,1)*asrc(:,1)
-     &           +ecof(:,b,2)*asrc(:,2)
-     &           +ecof(:,b,3)*asrc(:,3)
-     &           +ecof(:,b,4)*asrc(:,4)
-     &           +tcof(:,b,1)*finc(:,1)
-     &           +tcof(:,b,2)*finc(:,2)
-     &           +tcof(:,b,3)*finc(:,3)
-     &           +tcof(:,b,4)*finc(:,4)
-     &           +tcof(:,b,5)*finc(:,5)
-     &           +tcof(:,b,6)*finc(:,6)
-     &           +tcof(:,b,7)*finc(:,7)
-     &           +tcof(:,b,8)*finc(:,8)
-     &           +tcof(:,b,9)*finc(:,9)
+        fout(:,b)=ecofaux(:,b,1)*asrc(:,1)
+     &           +ecofaux(:,b,2)*asrc(:,2)
+     &           +ecofaux(:,b,3)*asrc(:,3)
+     &           +ecofaux(:,b,4)*asrc(:,4)
+     &           +tcofaux(:,b,1)*finc(:,1)
+     &           +tcofaux(:,b,2)*finc(:,2)
+     &           +tcofaux(:,b,3)*finc(:,3)
+     &           +tcofaux(:,b,4)*finc(:,4)
+     &           +tcofaux(:,b,5)*finc(:,5)
+     &           +tcofaux(:,b,6)*finc(:,6)
+     &           +tcofaux(:,b,7)*finc(:,7)
+     &           +tcofaux(:,b,8)*finc(:,8)
+     &           +tcofaux(:,b,9)*finc(:,9)
       ENDDO
    
 
@@ -350,3 +419,64 @@
       END
 
       END MODULE SWEEP8ONE
+
+
+
+      SUBROUTINE COMPUTE_COEFF_GLB(ng,ndir,nmat,delt3,nb_niv,
+     &                      mu,eta,ksi,sigt,
+     &                      ccofglb,icofglb,ecofglb,tcofglb)
+
+      IMPLICIT NONE
+
+      INTEGER, PARAMETER :: nc=4, nbd=9
+      
+      INTEGER, INTENT(IN):: ng,ndir,nmat,nb_niv
+
+      REAL(KIND=8), INTENT(IN) :: mu(ndir),eta(ndir),ksi(ndir)
+      REAL, INTENT(IN) :: delt3(3)
+      REAL, INTENT(IN) :: sigt(ng,nmat)
+
+      REAL, INTENT(INOUT) :: ccofglb(ng*ndir,nc,nc  ,nmat,nb_niv),
+     &                       icofglb(ng*ndir,nc,nbd ,nmat,nb_niv),
+     &                       ecofglb(ng*ndir,nbd,nc ,nmat,nb_niv),
+     &                       tcofglb(ng*ndir,nbd,nbd,nmat,nb_niv)
+
+      REAL , DIMENSION(nc,nc) :: ccof_aux
+      REAL , DIMENSION(nc,nbd) :: icof_aux
+      REAL , DIMENSION(nbd,nc) :: ecof_aux
+      REAL , DIMENSION(nbd,nbd) :: tcof_aux
+      
+      INTEGER :: mat,niv,d,g,cnt,c1,c2
+
+
+      REAL :: ox,oy,oz, deltniv(3)
+
+      
+      DO niv=1,nb_niv
+        deltniv = delt3/(2**(niv-1))
+        DO mat=1,nmat 
+            
+          cnt = 1
+          DO d=1,ndir
+            ox=2*mu(d)/deltniv(1)
+            oy=2*eta(d)/deltniv(2)
+            oz=2*ksi(d)/deltniv(3)
+
+            DO g=1,ng
+
+!           Coefficient for LL Method of Characteristics (simplified).
+              CALL COF3C1(ox,oy,oz,sigt(g,mat),
+     &                ccofglb(cnt,:,:,mat,niv),icofglb(cnt,:,:,mat,niv),
+     &                ecofglb(cnt,:,:,mat,niv),tcofglb(cnt,:,:,mat,niv))
+
+              cnt = cnt+1
+        
+           ENDDO
+         ENDDO
+
+        ENDDO ! mat
+
+      ENDDO ! NIV
+
+
+      END SUBROUTINE COMPUTE_COEFF_GLB

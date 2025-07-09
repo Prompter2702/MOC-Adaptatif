@@ -251,10 +251,9 @@
       harm :   DO h=1,nh
       region : DO r = 1,nr
       groupe : DO g = 1,ng
-        errinner = 
-     &  ABS(flxm(g,r,h,c,iold) - flxm(g,r,h,c,inew))
-        IF ( errinner  > tolinner * ABS( flxm(g,r,h,c,iold) )
-     &                   + epsilon(1.0) )THEN
+        errinner = ABS(flxm(g,r,h,c,iold) - flxm(g,r,h,c,inew))
+        IF ( errinner + epsilon(1.0) 
+     &   > tolinner * ABS( flxm(g,r,h,c,iold) )   )THEN
           okinner = .FALSE.
           EXIT spat
         ENDIF
@@ -264,6 +263,7 @@
       ENDDO spat
     
       addrflx = CSHIFT(addrflx, 1)
+      print *,"Error inner", errinner
    
    ! End inner iterations
       ENDDO
@@ -377,11 +377,11 @@
       ido  : DO i= kmin,kmax
       DO j= jmin,jmax
       DO k= imin,imax
-            cnt = ((i-1)*ny + (j-1))*nx + k 
-            if ( zreg(cnt) .NE. zreg(r)) THEN
-                oksrc = .FALSE.
-                EXIT ido
-            ENDIF
+         cnt = ((i-1)*ny + (j-1))*nx + k 
+         if ( zreg(cnt) .NE. zreg(r)) THEN
+             oksrc = .FALSE.
+             EXIT ido
+         ENDIF
       ENDDO
       ENDDO
       ENDDO ido
@@ -433,8 +433,7 @@
      &                    ccofglb(:,:,:,:,niv+2),icofglb(:,:,:,:,niv+2),
      &                    ecofglb(:,:,:,:,niv+2),tcofglb(:,:,:,:,niv+2),
      &                    ccof8,icof8,ecof8,tcof8)   
-
-
+     
         CALL SWEEP_8REGIONS(nn,2,asrcm1, finc1, aflx1, fout1,
      &                     ccof8,icof8,ecof8,tcof8, xinc, yinc, zinc)
 

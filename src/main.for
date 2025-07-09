@@ -9,15 +9,16 @@
       USE FLGINC
       USE SRCCORR
       USE FLXCOM
+      USE OCTREE
 
       IMPLICIT NONE
 
-      INTEGER, PARAMETER :: n = 30 ! Formule triangle
+      INTEGER, PARAMETER :: n = 10 ! Formule triangle
       INTEGER, PARAMETER :: ityp = 4 ! ChebyshevDoubleLegendre
-      REAL, PARAMETER    :: tolinner = 1.0e-6
-      ! REAL, PARAMETER    :: tolcor   = 1.0e-3
-      REAL, PARAMETER    :: tolcor   = -1.0
-      REAL, PARAMETER    :: delt = 4.0
+      REAL, PARAMETER    :: tolinner = 5.0e-4
+      REAL, PARAMETER    :: tolcor    = 1.0e-3
+    !   REAL, PARAMETER    :: tolcor   = -1.0
+      REAL, PARAMETER    :: delt = 8.0
       INTEGER, PARAMETER :: nmat = 1, nsurf = 6
       INTEGER, PARAMETER :: maxinner = 100
       INTEGER, PARAMETER :: n8=8, ns=4
@@ -64,7 +65,8 @@
       INTEGER :: count_start, count_end, count_rate, count_middle
       INTEGER :: x,y,z,r,oct, d,fst,da
       CHARACTER(LEN=20) :: name
-      INTEGER :: lastadd,cnt,g,i,j,k,nb_cell, nb_pix_tor,nb_niv
+      INTEGER :: lastadd,cnt,g,i,j,k,nb_cell, nb_pix_tor
+      INTEGER(KIND=1) :: nb_niv
       LOGICAL :: ok,oksrc
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -82,9 +84,8 @@
       REAL(KIND=8), ALLOCATABLE :: Im(:,:,: ,:,:,:,:)
       REAL(KIND=8), ALLOCATABLE :: Tm(:,:,: ,:,:,:,:)
 
-
-      REAL, ALLOCATABLE :: ccof(:,:,:), icof(:,:,:)
-      REAL, ALLOCATABLE :: ecof(:,:,:), tcof(:,:,:)
+      TYPE(CellOctree) :: roottree
+      INTEGER(KIND=4)  :: tab_morton
 
       !Variables à partir des paramètres
       ng = 1
@@ -100,6 +101,7 @@
       nh = 1
 
       nreg = nmat
+      tab_morton = 0
 
       nbfx = ny*nz
       nbfy = nx*nz
@@ -165,8 +167,7 @@
 
       ALLOCATE(asrc0(nn,nc))
 
-      ALLOCATE(ccof(nn,nc,nc), icof(nn,nc,nbd))
-      ALLOCATE(ecof(nn,nbd,nc), tcof(nn,nbd,nbd))
+      roottree = NEW_ROOT_OCTREE()
 
       Cm = 0.0
       Em = 0.0
@@ -176,9 +177,9 @@
       delt3 = (/delt, delt, delt/)
       lastadd = 2
 
-      ! CALL torus_voxel(nx,ny,nz,rmaj,rmin,delt/nx,nb_pix_tor,zreg)
-      !                 list_size_reg(1) = nr-nb_pix_tor
-      !                 list_size_reg(2) = nb_pix_tor
+    !   CALL torus_voxel(nx,ny,nz,rmaj,rmin,delt/nx,nb_pix_tor,zreg)
+    !   list_size_reg(1) = nr-nb_pix_tor
+    !   list_size_reg(2) = nb_pix_tor
 
       CALL SYSTEM_CLOCK(count_start, count_rate)  ! Capture début
   
@@ -198,10 +199,8 @@
       ! z_pixel(:,2) = 6
       ! Création de iosurf
       ! DO oct=1,noct
-
       !   iosurf_map(1,1,oct) = 1
       !   iosurf_map(2,1,oct) = 1
-        
       !   IF (xinc(oct)==1) THEN
       !       iosurf_map(1,2,oct) = 1
       !       iosurf_map(2,2,oct) = 2
@@ -209,7 +208,6 @@
       !       iosurf_map(1,2,oct) = 2
       !       iosurf_map(2,2,oct) = 1
       !   ENDIF
-
       !   iosurf_map(3,1,oct) = 2
       !   iosurf_map(4,1,oct) = 2
       !   IF (yinc(oct)==1) THEN
@@ -219,7 +217,6 @@
       !       iosurf_map(3,2,oct) = 2
       !       iosurf_map(4,2,oct) = 1
       !   ENDIF
-
       !   iosurf_map(5,1,oct) = 3
       !   iosurf_map(6,1,oct) = 3
       !   IF (zinc(oct)==1) THEN
@@ -232,11 +229,10 @@
       ! ENDDO
 
 
-
       sigt(:,1)   = 0.1
-      sigs(:,0,1) = 0.0
-      ! sigt(:,2)   = 0.55
-      ! sigs(:,0,2) = 0.44
+      sigs(:,0,1) = 0.05
+    !   sigt(:,2)   = 10.0
+    !   sigs(:,0,2) = 0.0
 
       zreg = 1 
 
@@ -244,18 +240,25 @@
       bflx = 0.0
       bfly = 0.0
       bflz = 0.0
+
+    !   bflx(:,1,:,1,1) = 12.0
+    !   bfly(:,1,:,1,1) = 12.0
+    !   bflz(:,1,:,1,1) = 12.0
+
       
       ! Initialisation of the angular flux and flux moments
       aflx = 0.0 
       flxm = 0.0
 
       ! Definition of the external source term
-      srcm = 0.0
-      DO r=1,nr
-        IF (zreg(r)==1) THEN
-          srcm(:,r,:,1) = 1.0
-        END IF
-      ENDDO
+      srcm = 0.0   
+      srcm(:,:,:,1) = 1.0
+
+    !   DO r=1,nr
+    !     IF (zreg(r)==1) THEN
+    !       srcm(:,r,:,1) = 1.0
+    !     END IF
+    !   ENDDO
 
         
       DO oct=1,noct
@@ -273,10 +276,11 @@
       CALL SNQDLFT(ndir,nd,nani,ndim, nhrm, mu,eta,ksi,w,sphr)
       CALL GAUSS_LU4(40,ndir, delt3, mu,eta,ksi, pdslu4)
 
+      print *, "compute coeff"
+
       CALL COMPUTE_COEFF_GLB(ng,ndir,nmat,delt3,nb_niv,
      &                      mu,eta,ksi,sigt,
      &                      ccofglb,icofglb,ecofglb,tcofglb)
-
 
       CALL SYSTEM_CLOCK(count_middle, count_rate)  ! Capture début
 
@@ -309,58 +313,83 @@
     !  &               Cm,Em,Im,Tm, errcor,errmul)
 
 
-        CALL SWEE_TOT_3D_ADAPTIVE(nn,ng,nr,nh,nc,nmat,nb_niv,
-     &                            nb,nbd,nbfx,nbfy,nbfz,
-     &                            nx,ny,nz,
-     &                            nani,nhrm,nd,ndir,
-     &                            sigt,sigs,
-     &                            srcm,asrc,
-     &                            bflx,bfly,bflz,
-     &                            mu,eta,ksi,w,pisn,sphr,
-     &                            sgnc,sgni,sgne,sgnt,
-     &                            ccofglb,icofglb,ecofglb,tcofglb,
-     &                            sigg, tmom,
-     &                            dsrc, aflx,
-     &                            rdir,
-     &                            zreg, 
-     &                            dira,dirf,
-     &                            lgki,
-     &                            flxm,
-     &                            delt3,
-     &                            maxinner, tolinner, tolcor,
-     &                            aflxmean,
-     &                            pdslu4,
-     &                            aflx0, aflx1,
-     &                            asrcm0, asrcm1,
-     &                            finc1, fout1,
-     &                            finc0, fout0, lastadd)
+        roottree = NEW_ROOT_OCTREE()
+
+        CALL SWEEP_3D_OCTREE(nn,ng,nr,nh,nc,nmat,nb_niv,
+     &                       nb,nbd,nbfx,nbfy,nbfz,
+     &                       nx,ny,nz,
+     &                       nani,nhrm,nd,ndir,roottree,
+     &                       tab_morton,
+     &                       sigt,sigs,
+     &                       srcm,asrc,
+     &                       bflx,bfly,bflz,
+     &                       mu,eta,ksi,w,pisn,sphr,
+     &                       sgnc,sgni,sgne,sgnt,
+     &                       ccofglb,icofglb,ecofglb,tcofglb,
+     &                       sigg, tmom,
+     &                       dsrc, aflx,
+     &                       rdir,
+     &                       zreg, 
+     &                       dira,dirf,
+     &                       lgki,
+     &                       flxm,
+     &                       delt3,
+     &                       maxinner, tolinner, tolcor,
+     &                       pdslu4,
+     &                       aflx0, asrcm0,finc0, fout0, lastadd)
 
 
-      ! print *,"flxm", flxm(:,:,:,1,lastadd)
+
+      tab_morton = 0
+      CALL MEAN_FLUX_CELL_OCTREE(nn,ng,ndir,nr,nh,nhrm,
+     &                           nx,ny,nz,nb_niv,
+     &                           xinc,yinc,zinc,sphr,w,
+     &                           roottree,tab_morton,0_1,
+     &                           delt3,r, aflx,flxmean,.TRUE.)
+
+    !     CALL SWEE_TOT_3D_ADAPTIVE(nn,ng,nr,nh,nc,nmat,nb_niv,
+    !  &                            nb,nbd,nbfx,nbfy,nbfz,
+    !  &                            nx,ny,nz,
+    !  &                            nani,nhrm,nd,ndir,
+    !  &                            sigt,sigs,
+    !  &                            srcm,asrc,
+    !  &                            bflx,bfly,bflz,
+    !  &                            mu,eta,ksi,w,pisn,sphr,
+    !  &                            sgnc,sgni,sgne,sgnt,
+    !  &                            ccofglb,icofglb,ecofglb,tcofglb,
+    !  &                            sigg, tmom,
+    !  &                            dsrc, aflx,
+    !  &                            rdir,
+    !  &                            zreg, 
+    !  &                            dira,dirf,
+    !  &                            lgki,
+    !  &                            flxm,
+    !  &                            delt3,
+    !  &                            maxinner, tolinner, tolcor,
+    !  &                            aflxmean,
+    !  &                            pdslu4,
+    !  &                            aflx0, aflx1,
+    !  &                            asrcm0, asrcm1,
+    !  &                            finc1, fout1,
+    !  &                            finc0, fout0, lastadd)
 
 
-      print *, "uboundcmext", ubound(Cm)
+    !   print *,"flxm", flxm(:,:,:,1,lastadd)
 
 
+    !   print *, "uboundcmext", ubound(Cm)
       ! print*, "Cm", MAXVAL(ABS(Cm))
       ! print*, "Em", MAXVAL(ABS(Em))
       ! print*, "Im", MAXVAL(ABS(Im))
       ! print*, "Tm", MAXVAL(ABS(Tm))
-
-
-
     !   print *, "Em", Em
     !   print *, "Im", Im
     !   print *, "Tm", Tm
-
-
-      print *, "HCC_coeff terminé"
-
+    !   print *, "HCC_coeff terminé"
 
       oct = 1
       ok = .FALSE.
       oksrc = .FALSE.
-
 
       CALL SYSTEM_CLOCK(count_end, count_rate)    ! Capture fin
       PRINT *, "Temps:", REAL(count_end - count_start)/count_rate,
@@ -370,7 +399,7 @@
       ! Affichage des résultats
 
       ! Total mean
-    !   print*,"Moyenne flux", SUM(flxm(1,:,1,1,lastadd), dim=1)/nr
+      print*,"Moyenne flux", SUM(flxm(1,:,1,1,lastadd), dim=1)/nr
     !   print*,"Moyenne flux", SUM(aflx(1,:,1,1), dim=1)/nr
 
 
@@ -397,6 +426,14 @@
      &            0.0,0.0,0.0,                     
      &            (/delt, delt, delt/),
      &            flxm(:,:,:,1,lastadd),name)
+      
+     
+      WRITE(name, '(A,I0,A,I0,A,I0,A)') "tor_mean_cell.vtk"
+      CALL VOLVTK(nx,ny,nz,
+     &            .TRUE.,.TRUE.,.TRUE.,
+     &            0.0,0.0,0.0,                     
+     &            (/delt, delt, delt/),
+     &            flxmean,name)
 
     !   WRITE(name, '(A,I0,A,I0,A,I0,A)') "flx_vol.vtk"
     !   CALL VOLVTK(nx,ny,nz,

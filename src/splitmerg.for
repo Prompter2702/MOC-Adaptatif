@@ -118,25 +118,26 @@
 
       SUBROUTINE SRCHOMO0(nn,nr,nx,ny,
      &                 imin,imax,jmin,jmax,kmin,kmax,
-     &                 zreg, asrc, srchom0)
+     &                 asrc, srchom0)
 
 ! Compute the homogenized angular source and cross-section at lvl 0
 
         IMPLICIT NONE
    
         INTEGER, PARAMETER :: nc = 4
-        INTEGER, INTENT(IN) :: nn,nr,
-     &                     imin,imax,jmin,jmax,kmin,kmax,nx,ny
-        
-        INTEGER, INTENT(IN) :: zreg(nr)
+        INTEGER, INTENT(IN) :: nn,nr
+        INTEGER(KIND=2), INTENT(IN) :: imin,imax,jmin,jmax,
+     &                                 kmin,kmax,nx,ny
+
         REAL, INTENT(INOUT) :: asrc(nn,nr,nc)
         REAL, INTENT(OUT)   ::  srchom0(nn,nc)
         
         ! locals 
-        INTEGER :: x,y,z,r,m, Di,Dj,Dk
-        Di = imax - imin + 1
-        Dj = jmax - jmin + 1
-        Dk = kmax - kmin + 1
+        INTEGER :: r
+        INTEGER(KIND=4) :: x,y,z, Di,Dj,Dk
+        Di = imax - imin + 1_4
+        Dj = jmax - jmin + 1_4
+        Dk = kmax - kmin + 1_4
 
         srchom0 = 0.0D0
    
@@ -144,7 +145,6 @@
           DO y= jmin,jmax
             DO x= imin,imax
               r = ((z-1)*ny + (y-1))*nx + x 
-              m = zreg(r)
               srchom0(:,1) = srchom0(:,1) + asrc(:,r,1)
               srchom0(:,2) = srchom0(:,2) + ( asrc(:,r,2)
      &        + asrc(:,r,1)*(2*x-imax-imin) )/Di
@@ -159,7 +159,8 @@
           ENDDO
         ENDDO
 
-      srchom0 = srchom0/(Di*Dj*Dk)  
+      
+      srchom0 = srchom0/(Di*Dj*Dk)
 
       END SUBROUTINE SRCHOMO0
 
@@ -200,16 +201,17 @@
       ! finc1(nn, nb, nb, ns) same but on level 1 and for each 4 subfaces
          
       INTEGER, INTENT(IN) :: nn,nb 
-      INTEGER, INTENT(IN) :: imin, imax,jmin,jmax,kmin,kmax, nx,ny,nz
+      INTEGER(KIND=2), INTENT(IN) :: imin, imax,jmin,jmax,
+     &                               kmin,kmax, nx,ny,nz
       REAL, INTENT(IN)    :: bflx(nn,nb,ny,nz),
      &                       bfly(nn,nb,nx,nz),
      &                       bflz(nn,nb,nx,ny)
        
       REAL, INTENT(INOUT)  :: finc0(nn,nb,nb)
-      INTEGER :: i,j,k, Di,Dj,Dk
-      Di = imax - imin + 1
-      Dj = jmax - jmin + 1
-      Dk = kmax - kmin + 1 
+      INTEGER(KIND=4) :: i,j,k, Di,Dj,Dk
+      Di = imax - imin + 1_4
+      Dj = jmax - jmin + 1_4
+      Dk = kmax - kmin + 1_4 
     
       finc0 = 0.0
     
@@ -354,7 +356,7 @@
 
 !----------------------------------------------------------------------
      
-      SUBROUTINE SPLITBOUND0(nn,ng,nb,
+      SUBROUTINE SPLITBOUND0(nn,nb,
      &                      imin, imax,jmin,jmax,kmin,kmax,
      &                      nx,ny,nz,
      &                      bflx, bfly, bflz, fout0)
@@ -365,17 +367,18 @@
       IMPLICIT NONE
       INTEGER ,PARAMETER :: ns = 4
  
-      INTEGER, INTENT(IN) :: nn, ng,nb
-      INTEGER, INTENT(IN) :: imin, imax,jmin,jmax,kmin,kmax, nx,ny,nz
+      INTEGER, INTENT(IN) :: nn,nb
+      INTEGER(KIND=2), INTENT(IN) :: imin, imax,jmin,jmax,
+     &                               kmin,kmax, nx,ny,nz
       REAL, INTENT(IN)    :: fout0(nn,nb,nb)
       REAL, INTENT(INOUT) :: bflx(nn,nb,ny,nz),
      &                       bfly(nn,nb,nx,nz),
      &                       bflz(nn,nb,nx,ny)
  
-      INTEGER :: i,j,k, Di,Dj,Dk
-      Di = imax - imin + 1
-      Dj = jmax - jmin + 1
-      Dk = kmax - kmin + 1      
+      INTEGER(KIND=2) :: i,j,k, Di,Dj,Dk
+      Di = imax - imin + 1_2
+      Dj = jmax - jmin + 1_2
+      Dk = kmax - kmin + 1_2      
  
       DO k=kmin, kmax
         DO j=jmin, jmax
@@ -563,15 +566,18 @@
 
         IMPLICIT NONE
    
-        INTEGER, INTENT(IN) :: nx,ny
-        INTEGER, INTENT(IN) :: nn,nr,nc,imin,imax,jmin,jmax,kmin,kmax
+        INTEGER(KIND=2), INTENT(IN) :: nx,ny
+        INTEGER, INTENT(IN) :: nn,nr,nc
+        INTEGER(KIND=2), INTENT(IN) :: imin,imax,jmin,jmax,kmin,kmax
         REAL, INTENT(IN) :: aflx0(nn,nc)
         REAL, INTENT(OUT) :: aflx(nn,nr,nc)
    
-        INTEGER :: i,j,k,r, Di, Dj, Dk
-        Di = imax - imin + 1
-        Dj = jmax - jmin + 1
-        Dk = kmax - kmin + 1
+
+        INTEGER :: r
+        INTEGER(KIND=2) :: i,j,k, Di, Dj, Dk
+        Di = imax - imin + 1_2
+        Dj = jmax - jmin + 1_2
+        Dk = kmax - kmin + 1_2
 
         DO i=imin,imax
           DO j=jmin,jmax
@@ -584,7 +590,6 @@
                 aflx(:,r,2) = aflx0(:,2)/Di
                 aflx(:,r,3) = aflx0(:,3)/Dj
                 aflx(:,r,4) = aflx0(:,4)/Dk
-
             ENDDO
           ENDDO
         ENDDO

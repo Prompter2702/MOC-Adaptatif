@@ -130,6 +130,7 @@
 
       END SUBROUTINE SRC2LVL
 
+
       SUBROUTINE ERRSURF(nn, nx,ny,nz,
      &                   imin,imax,jmin,jmax,kmin,kmax,
      &                   flx0, bflx,bfly,bflz,tcof,errbnd)
@@ -138,8 +139,9 @@
 
         INTEGER,PARAMETER :: nbd = 9, nb = 3
 
-        INTEGER, INTENT(IN) :: nn,nx,ny,nz
-        INTEGER, INTENT(IN) :: imin, imax, jmin, jmax, kmin, kmax
+        INTEGER, INTENT(IN) :: nn
+        INTEGER(KIND=2), INTENT(IN) :: nx,ny,nz,imin,imax,
+     &                                 jmin,jmax,kmin,kmax
         REAL, INTENT(IN) :: flx0(nn,nb,nb)
         REAL, INTENT(IN) :: bflx(nn,nb,ny,nz)
         REAL, INTENT(IN) :: bfly(nn,nb,nx,nz)
@@ -185,15 +187,15 @@
 
         errfin = 0.0D0
         errfin = err
-    !     errfin(:,1) = tcof(:,1,1)*err(:,1)
-    !  &           +    tcof(:,1,4)*err(:,2)
-    !  &           +    tcof(:,1,7)*err(:,3)
-    !     errfin(:,2) = tcof(:,2,1)*err(:,1)
-    !  &           +    tcof(:,2,4)*err(:,2)
-    !  &           +    tcof(:,2,7)*err(:,3)
-    !     errfin(:,3) = tcof(:,3,1)*err(:,1)
-    !  &           +    tcof(:,3,4)*err(:,2)
-    !  &           +    tcof(:,3,7)*err(:,3)
+        errfin(:,1) = tcof(:,1,1)*err(:,1)
+     &           +    tcof(:,1,4)*err(:,2)
+     &           +    tcof(:,1,7)*err(:,3)
+        errfin(:,2) = tcof(:,2,1)*err(:,1)
+     &           +    tcof(:,2,4)*err(:,2)
+     &           +    tcof(:,2,7)*err(:,3)
+        errfin(:,3) = tcof(:,3,1)*err(:,1)
+     &           +    tcof(:,3,4)*err(:,2)
+     &           +    tcof(:,3,7)*err(:,3)
 
         ! errbnd = SUM(ABS(errfin))/(nn*3)
         errbnd(1) = SUM( ABS(errfin(:,1)) )/nn

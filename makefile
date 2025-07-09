@@ -8,7 +8,7 @@ BUILDDIR = build
 
 MODSRC = $(SRCDIR)/flgbcd.for $(SRCDIR)/flginc.for $(SRCDIR)/flgoct.for \
 		$(SRCDIR)/flgsnq.for $(SRCDIR)/flxcom.for $(SRCDIR)/snqhrm.for \
-		$(SRCDIR)/sweep8one.for $(SRCDIR)/srccorr.for
+		$(SRCDIR)/sweep8one.for $(SRCDIR)/srccorr.for $(SRCDIR)/octree.for
 SRC        = $(wildcard  $(SRCDIR)/*.for)
 SRCSANSMOD = $(filter-out $(MODSRC), $(SRC))
 
